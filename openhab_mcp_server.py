@@ -95,11 +95,6 @@ class Rule(BaseModel):
     conditions: List[RuleCondition] = []
     actions: List[RuleAction] = []
 
-class Script(BaseModel):
-    id: str
-    type: str  # e.g., "application/javascript", "application/vnd.openhab.dsl.rule"
-    content: str
-
 
 # Real openHAB API client
 class OpenHABClient:
@@ -118,12 +113,13 @@ class OpenHABClient:
     
     def list_items(self, filter_tag: Optional[str] = None) -> List[Item]:
         """List all items, optionally filtered by tag"""
-        response = self.session.get(f"{self.base_url}/rest/items")
+        if filter_tag:
+            response = self.session.get(f"{self.base_url}/rest/items?tags={filter_tag}")
+        else:
+            response = self.session.get(f"{self.base_url}/rest/items")      
         response.raise_for_status()
         items = [Item(**item) for item in response.json()]
         
-        if filter_tag:
-            return [item for item in items if filter_tag in item.get("tags", [])]
         return items
     
     def get_item(self, item_name: str) -> Optional[Item]:
@@ -145,13 +141,7 @@ class OpenHABClient:
         if not item.name:
             raise ValueError("Item must have a name")
 
-        payload = {
-            "type": item.type or "String",
-            "name": item.name,
-            "label": item.label or item.name,
-            "tags": item.tags or [],
-            "groupNames": item.groupNames or []
-        }
+        payload = item.dict()
         
         response = self.session.put(
             f"{self.base_url}/rest/items/{item.name}",
@@ -235,9 +225,12 @@ class OpenHABClient:
                 return None
             raise
     
-    def list_rules(self) -> List[Rule]:
-        """List all rules"""
-        response = self.session.get(f"{self.base_url}/rest/rules")
+    def list_rules(self, filter_tag: Optional[str] = None) -> List[Rule]:
+        """List all rules, optionally filtered by tag"""
+        if filter_tag:
+            response = self.session.get(f"{self.base_url}/rest/rules?tags={filter_tag}")
+        else:
+            response = self.session.get(f"{self.base_url}/rest/rules")
         response.raise_for_status()
         return [Rule(**rule) for rule in response.json()]
     
@@ -250,30 +243,6 @@ class OpenHABClient:
             response = self.session.get(f"{self.base_url}/rest/rules/{rule_uid}")
             response.raise_for_status()
             return Rule(**response.json())
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                return None
-            raise
-    
-    def list_scripts(self) -> List[Script]:
-        """List all scripts"""
-        response = self.session.get(f"{self.base_url}/rest/scripts")
-        response.raise_for_status()
-        return [Script(**script) for script in response.json()]
-    
-    def get_script(self, script_id: str) -> Optional[Script]:
-        """Get a specific script by ID"""
-        if script_id is None:
-            return None
-        
-        try:
-            response = self.session.get(f"{self.base_url}/rest/scripts/{script_id}")
-            response.raise_for_status()
-            return Script(
-                id=script_id,
-                type=response.headers.get("Content-Type", "text/plain"),
-                content=response.text
-            )
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
@@ -335,7 +304,88 @@ class OpenHABClient:
         
         # Update the rule with just this action
         return self.update_rule(rule_uid, {"actions": [action_update]})
+    
+    def create_rule(self, rule: Rule) -> Rule:
+        """Create a new rule"""
+        if not rule.uid:
+            raise ValueError("Rule must have a UID")
+        
+        # Prepare payload
+        payload = rule.dict()
+        
+        # Send create request
+        response = self.session.post(
+            f"{self.base_url}/rest/rules",
+            json=payload
+        )
+        response.raise_for_status()
+        
+        # Get the created rule
+        return self.get_rule(rule.uid)
+    
+    def delete_rule(self, rule_uid: str) -> bool:
+        """Delete a rule"""
+        response = self.session.delete(f"{self.base_url}/rest/rules/{rule_uid}")
+        
+        if response.status_code == 404:
+            raise ValueError(f"Rule with UID '{rule_uid}' not found")
+        
+        response.raise_for_status()
+        return True
 
+    def list_scripts(self) -> List[Rule]:
+        """List all scripts. A script is a rule without a trigger and tag of 'Script'"""
+        return self.list_rules(filter_tag="Script")
+
+
+    def get_script(self, script_id: str) -> Optional[Rule]:
+        """Get a specific script by ID. A script is a rule without a trigger and tag of 'Script'"""
+        if script_id is None:
+            return None
+        
+        return self.get_rule(script_id)
+    
+
+    def create_script(self, script_id: str, script_type: str, content: str) -> Rule:
+        """Create a new script.  A script is a rule without a trigger and tag of 'Script'"""
+        if not script_id:
+            raise ValueError("Script must have an ID")
+        if not content:
+            raise ValueError("Script content cannot be empty")
+        if not script_type:
+            raise ValueError("Script type cannot be empty")
+        
+        rule = Rule(
+            uid=script_id,
+            name=script_id,
+            tags=["Script"],
+            triggers=[],
+            actions=[
+                {
+                    "id": "1",
+                    "type": "script.ScriptAction",
+                    "configuration": {
+                        "type": script_type,  # e.g., "application/javascript"
+                        "script": content
+                    }
+                }
+            ]
+        )
+
+        return self.create_rule(rule)
+    
+    def update_script(self, script_id: str, script_type: str, content: str) -> Rule:
+        """Update an existing script. A script is a rule without a trigger and tag of 'Script'"""
+        rule = self.get_rule(script_id)
+        # Check if script exists
+        if not rule:
+            raise ValueError(f"Script with ID '{script_id}' not found")
+
+        return self.update_rule_script_action(script_id, rule.actions[0].id, script_type, content)
+    
+    def delete_script(self, script_id: str) -> bool:
+        """Delete a script. A script is a rule without a trigger and tag of 'Script'"""
+        return self.delete_rule(script_id)  
 
 # Initialize the real OpenHAB client
 openhab_client = OpenHABClient(
@@ -393,9 +443,9 @@ def get_thing(thing_uid: str) -> Optional[Thing]:
     return thing
 
 @mcp.tool()
-def list_rules() -> List[Rule]:
-    """List all openHAB rules"""
-    rules = openhab_client.list_rules()
+def list_rules(filter_tag: Optional[str] = None) -> List[Rule]:
+    """List all openHAB rules, optionally filtered by tag"""
+    rules = openhab_client.list_rules(filter_tag)
     return rules
 
 @mcp.tool()
@@ -405,14 +455,14 @@ def get_rule(rule_uid: str) -> Optional[Rule]:
     return rule
 
 @mcp.tool()
-def list_scripts() -> List[Script]:
-    """List all openHAB scripts"""
+def list_scripts() -> List[Rule]:
+    """List all openHAB scripts. A script is a rule without a trigger and tag of 'Script'"""
     scripts = openhab_client.list_scripts()
     return scripts
 
 @mcp.tool()
-def get_script(script_id: str) -> Optional[Script]:
-    """Get a specific openHAB script by ID"""
+def get_script(script_id: str) -> Optional[Rule]:
+    """Get a specific openHAB script by ID. A script is a rule without a trigger and tag of 'Script'"""
     script = openhab_client.get_script(script_id)
     return script
 
@@ -427,6 +477,34 @@ def update_rule_script_action(rule_uid: str, action_id: str, script_type: str, s
     """Update a script action in an openHAB rule"""
     updated_rule = openhab_client.update_rule_script_action(rule_uid, action_id, script_type, script_content)
     return updated_rule
+
+@mcp.tool()
+def create_rule(rule: Rule) -> Rule:
+    """Create a new openHAB rule"""
+    created_rule = openhab_client.create_rule(rule)
+    return created_rule
+
+@mcp.tool()
+def delete_rule(rule_uid: str) -> bool:
+    """Delete an openHAB rule"""
+    return openhab_client.delete_rule(rule_uid)
+
+@mcp.tool()
+def create_script(script_id: str, script_type: str, content: str) -> Rule:
+    """Create a new openHAB script. A script is a rule without a trigger and tag of 'Script'"""
+    created_script = openhab_client.create_script(script_id, script_type, content)
+    return created_script
+
+@mcp.tool()
+def update_script(script_id: str, script_type: str, content: str) -> Rule:
+    """Update an existing openHAB script. A script is a rule without a trigger and tag of 'Script'"""
+    updated_script = openhab_client.update_script(script_id, script_type, content)
+    return updated_script
+
+@mcp.tool()
+def delete_script(script_id: str) -> bool:
+    """Delete an openHAB script. A script is a rule without a trigger and tag of 'Script'"""
+    return openhab_client.delete_script(script_id)
 
 if __name__ == "__main__":
     mcp.run()
