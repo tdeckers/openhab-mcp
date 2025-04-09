@@ -1,0 +1,5 @@
+modelcontextprotocol
+python-dotenv
+uv
+requests
+pydantic

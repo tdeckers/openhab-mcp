@@ -1,0 +1,16 @@
+services:
+  openhab:
+    image: openhab/openhab:latest
+    ports:
+      - "18080:8080"
+    environment:
+      - OPENHAB_HTTP_PORT=8080
+      - EXTRA_JAVA_OPTS=-Duser.timezone=UTC
+    volumes:
+      - ./docker/openhab/conf:/openhab/conf
+      - ./docker/openhab/userdata:/openhab/userdata
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/rest"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
