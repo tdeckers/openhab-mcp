@@ -8,9 +8,13 @@ connects to a real openHAB instance via its REST API.
 
 import os
 import sys
+import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Configure logging to suppress INFO messages
+logging.basicConfig(level=logging.WARNING)
 
 # Import the MCP server implementation
 from mcp.server import FastMCP
@@ -157,6 +161,11 @@ def update_script(script_id: str, script_type: str, content: str) -> Rule:
 def delete_script(script_id: str) -> bool:
     """Delete an openHAB script. A script is a rule without a trigger and tag of 'Script'"""
     return openhab_client.delete_script(script_id)
+
+@mcp.tool()
+def run_rule_now(rule_uid: str) -> bool:
+    """Run an openHAB rule immediately"""
+    return openhab_client.run_rule_now(rule_uid)
 
 if __name__ == "__main__":
     mcp.run()

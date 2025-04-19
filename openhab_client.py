@@ -292,3 +292,21 @@ class OpenHABClient:
     def delete_script(self, script_id: str) -> bool:
         """Delete a script. A script is a rule without a trigger and tag of 'Script'"""
         return self.delete_rule(script_id)
+    
+    def run_rule_now(self, rule_uid: str) -> bool:
+        """Run a rule immediately"""
+        if not rule_uid:
+            raise ValueError("Rule UID cannot be empty")
+            
+        # Check if rule exists
+        if not self.get_rule(rule_uid):
+            raise ValueError(f"Rule with UID '{rule_uid}' not found")
+        
+        # Send request to run the rule
+        response = self.session.post(f"{self.base_url}/rest/rules/{rule_uid}/runnow")
+        
+        if response.status_code == 404:
+            raise ValueError(f"Rule with UID '{rule_uid}' not found")
+        
+        response.raise_for_status()
+        return True
