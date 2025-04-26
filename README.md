@@ -30,39 +30,36 @@ When connected to Claude or Cline in VSCode, you can use natural language to con
 
 - Python 3.7+
 
-## Installation
+## Installation and Usage
 
-1. Clone this repository
-2. Run the installation script:
+The recommended way to run the OpenHAB MCP Server is using Docker:
 
-```bash
-python install.py
-```
+To run the MCP using Docker, follow these steps:
 
-This will:
-- Check your Python version
-- Install uv if needed
-- Set up a virtual environment
-- Install all dependencies
-- Create a .env file from the example
+1. Build the Docker image:
+   ```bash
+   make docker-build
+   # or directly: docker build -t openhab-mcp .
+   ```
 
-3. Configure your OpenHAB connection in the .env file
+2. Run the Docker container:
+   ```bash
+   make docker-run
+   # or directly:
+   docker run -d --rm -p 8081:8080 \
+     -e OPENHAB_URL=http://your-openhab-host:8080 \
+     -e OPENHAB_API_TOKEN=your-api-token \
+     --name openhab-mcp \
+     openhab-mcp
+   ```
 
-## Usage
+3. To stop the container:
+   ```bash
+   make docker-stop
+   # or directly: docker stop openhab-mcp
+   ```
 
-Run the server using Python:
-
-```bash
-python openhab_mcp_server.py
-```
-
-Or run the server using uv:
-
-```bash
-uv run openhab_mcp_server.py
-```
-
-This will run the server in an isolated environment managed by uv, ensuring all dependencies are correctly resolved.
+Note: The container exposes port 8080 internally, but we map it to port 8081 on the host to avoid conflicts with OpenHAB which typically uses port 8080.
 
 ## Using with Claude and Cline in VSCode
 
@@ -75,9 +72,8 @@ You can connect this OpenHAB MCP server to Claude or Cline in VSCode to interact
 
 ### Configuration for Claude Desktop
 
-1. Clone and set up this repository as described in the Installation section
-2. Run the OpenHAB MCP server
-3. Create a configuration file for Claude Desktop:
+1. Build and run the Docker container as described in the "Running the MCP with Docker" section.
+2. Create a configuration file for Claude Desktop:
 
 Save the following as `claude_desktop_config.json` in your Claude Desktop configuration directory:
 
@@ -90,27 +86,29 @@ Save the following as `claude_desktop_config.json` in your Claude Desktop config
   "mcp_servers": [
     {
       "name": "openhab-mcp",
-      "command": "{PATH_TO_UV}",
+      "command": "docker",
       "args": [
-        "--directory",
-        "{PATH_TO_REPO}/openhab-mcp",
         "run",
-        "openhab_mcp_server.py"
+        "-d",
+        "-p",
+        "8081:8080",
+        "-e",
+        "OPENHAB_URL=http://your-openhab-host:8080",
+        "-e",
+        "OPENHAB_API_TOKEN=your-api-token",
+        "--name",
+        "openhab-mcp",
+        "openhab-mcp"
       ]
     }
   ]
 }
 ```
 
-Replace:
-- `{PATH_TO_UV}` with the path to your uv executable (e.g., `/usr/local/bin/uv`)
-- `{PATH_TO_REPO}` with the path to where you cloned this repository
-
 ### Configuration for Cline in VSCode
 
-1. Clone and set up this repository as described in the Installation section
-2. Run the OpenHAB MCP server
-3. Create a configuration file for Cline:
+1. Build and run the Docker container as described in the "Running the MCP with Docker" section.
+2. Create a configuration file for Cline:
 
 Save the following as `mcp.json` in your Cline configuration directory:
 
@@ -122,21 +120,24 @@ Save the following as `mcp.json` in your Cline configuration directory:
   "mcp_servers": [
     {
       "name": "openhab-mcp",
-      "command": "{PATH_TO_UV}",
+      "command": "docker",
       "args": [
-        "--directory",
-        "{PATH_TO_REPO}/openhab-mcp",
         "run",
-        "openhab_mcp_server.py"
+        "-d",
+        "-p",
+        "8081:8080",
+        "-e",
+        "OPENHAB_URL=http://your-openhab-host:8080",
+        "-e",
+        "OPENHAB_API_TOKEN=your-api-token",
+        "--name",
+        "openhab-mcp",
+        "openhab-mcp"
       ]
     }
   ]
 }
 ```
-
-Replace:
-- `{PATH_TO_UV}` with the path to your uv executable (e.g., `/usr/local/bin/uv`)
-- `{PATH_TO_REPO}` with the path to where you cloned this repository
 
 ### Restart and Verify
 
@@ -203,37 +204,9 @@ The server provides the following resources:
 }
 ```
 
-## Development with uv
+## Development
 
-uv is a Python package installer and resolver that's designed to be a faster, more reliable alternative to pip. It's also used as a Python environment manager, similar to venv or conda.
-
-### Benefits of using uv
-
-1. **Faster package installation**: uv is significantly faster than pip for installing packages
-2. **Improved dependency resolution**: uv provides more reliable dependency resolution
-3. **Isolated environments**: uv can create and manage isolated Python environments
-4. **Reproducible builds**: uv ensures consistent package installations across different environments
-
-### Using uv for development
-
-To create a new development environment with uv:
-
-```bash
-uv venv
-```
-
-To activate the environment:
-
-```bash
-source .venv/bin/activate  # On Linux/macOS
-.venv\Scripts\activate     # On Windows
-```
-
-To install packages in development mode:
-
-```bash
-uv pip install -e .
-```
+For development purposes, please refer to the DEVELOPER.md file for more information on the Docker-based development workflow.
 
 ## Notes
 

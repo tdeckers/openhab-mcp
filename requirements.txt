@@ -1,5 +1,4 @@
-modelcontextprotocol
+mcp
 python-dotenv
-uv
 requests
 pydantic

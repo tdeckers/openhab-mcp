@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   openhab:
     image: openhab/openhab:latest
@@ -14,3 +16,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - openhab-network
+
+  openhab-mcp:
+    build: .
+    ports:
+      - "8081:8080"  # Changed to 8081 to avoid conflict with OpenHAB
+    environment:
+      - OPENHAB_URL=http://openhab:8080
+      - OPENHAB_API_TOKEN=${OPENHAB_API_TOKEN:-}
+      - OPENHAB_USERNAME=${OPENHAB_USERNAME:-}
+      - OPENHAB_PASSWORD=${OPENHAB_PASSWORD:-}
+    depends_on:
+      openhab:
+        condition: service_healthy
+    networks:
+      - openhab-network
+
+networks:
+  openhab-network:
+    driver: bridge
