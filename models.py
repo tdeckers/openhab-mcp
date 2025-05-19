@@ -9,9 +9,13 @@ class Item(BaseModel):
     tags: List[str] = []
     groupNames: List[str] = []
 
+class DataPoint(NamedTuple):
+    time: int
+    state: str
+
 class ItemPersistence(BaseModel):
     name: str
-    data: List[Tuple[int, str]] = []
+    data: List[DataPoint] = []
 
 class ThingStatusInfo(BaseModel):
     status: str
