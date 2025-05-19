@@ -88,7 +88,7 @@ class OpenHABClient:
     def get_item_persistence(self, item_name: str, starttime: str, endtime: str) -> Item:
         """Get the persistence values of an item between start and end in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"""
         
-        pattern = re.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\.\\d{3}Z$")
+        pattern = re.compile("^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
         if item_name is None:
             return None
         
