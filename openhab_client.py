@@ -86,21 +86,21 @@ class OpenHABClient:
         return self.get_item(item_name)
     
     def get_item_persistence(self, item_name: str, starttime: str, endtime: str) -> Item:
-        """Get the persistence values of an item between start and end in format [yyyy-MM-dd'T'HH:mm:ss.SSSZ]"""
+        """Get the persistence values of an item between start and end in format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"""
         
-        pattern = re.compile("^\d{4}-\d{2}-\d{2}'T'\d{2}:\d{2}:\d{2}.\d{3}Z$")
+        pattern = re.compile("^\[0-5]{4}-[0-5]{2}-[0-5]{2}T[0-5]{2}:[0-5]{2}:[0-5]{2}.[0-5]{3}Z$")
         if item_name is None:
             return None
         
         params = {}
         if starttime:
             if not pattern.match(starttime):
-                raise ValueError("Start time must be in format yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+                raise ValueError("Start time must be in format yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
             params["starttime"] = starttime
         
         if endtime:
             if not pattern.match(endtime):
-                raise ValueError("End time must be in format yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+                raise ValueError("End time must be in format yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
             params["endtime"] = endtime
         
         try:
