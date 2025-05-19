@@ -2,7 +2,7 @@ import re
 import requests
 from typing import Dict, List, Optional, Any
 
-from models import Item, Thing, Rule
+from models import Item, Thing, Rule, ItemPersistence
 
 class OpenHABClient:
     """Client for interacting with the openHAB REST API"""
