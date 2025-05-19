@@ -1,5 +1,4 @@
-from datetime import datetime
-from typing import Dict, List, Optional, Any, NamedTuple
+from typing import Dict, List, Optional, Any, Tuple
 from pydantic import BaseModel, Field
 
 class Item(BaseModel):
@@ -10,13 +9,9 @@ class Item(BaseModel):
     tags: List[str] = []
     groupNames: List[str] = []
 
-class DataPoint(NamedTuple):
-    time: datetime
-    state: str
-
 class ItemPersistence(BaseModel):
     name: str
-    data: Optional[List[DataPoint]] = None
+    data: List[Tuple[int, str]] = []
 
 class ThingStatusInfo(BaseModel):
     status: str
