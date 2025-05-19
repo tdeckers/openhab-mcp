@@ -1,3 +1,4 @@
+import re
 import requests
 from typing import Dict, List, Optional, Any
 
@@ -83,6 +84,33 @@ class OpenHABClient:
         
         # Get the updated item
         return self.get_item(item_name)
+    
+    def get_item_persistence(self, item_name: str, starttime: str, endtime: str) -> Item:
+        """Get the persistence values of an item between start and end in format [yyyy-MM-dd'T'HH:mm:ss.SSSZ]"""
+        
+        pattern = re.compile("^\d{4}-\d{2}-\d{2}'T'\d{2}:\d{2}:\d{2}.\d{3}Z$")
+        if item_name is None:
+            return None
+        
+        params = {}
+        if starttime:
+            if not pattern.match(starttime):
+                raise ValueError("Start time must be in format yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+            params["starttime"] = starttime
+        
+        if endtime:
+            if not pattern.match(endtime):
+                raise ValueError("End time must be in format yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+            params["endtime"] = endtime
+        
+        try:
+            response = self.session.get(f"{self.base_url}/rest/persistence/items/{item_name}", params=params)
+            response.raise_for_status()
+            return ItemPersistence(**response.json())
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
     
     def delete_item(self, item_name: str) -> bool:
         """Delete an item"""

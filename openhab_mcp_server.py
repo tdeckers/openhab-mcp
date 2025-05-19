@@ -25,6 +25,26 @@ from mcp.types import JSONRPCError, INVALID_REQUEST
 from models import Item, Thing, Rule
 from openhab_client import OpenHABClient
 
+from mcp.server.session import ServerSession
+
+####################################################################################
+# Temporary monkeypatch which avoids crashing when a POST message is received
+# before a connection has been initialized, e.g: after a deployment.
+# pylint: disable-next=protected-access
+old__received_request = ServerSession._received_request
+
+
+async def _received_request(self, *args, **kwargs):
+    try:
+        return await old__received_request(self, *args, **kwargs)
+    except RuntimeError:
+        pass
+
+
+# pylint: disable-next=protected-access
+ServerSession._received_request = _received_request
+####################################################################################
+
 mcp = FastMCP("OpenHAB MCP Server")
 
 # Load environment variables from .env file
@@ -85,6 +105,12 @@ def update_item_state(item_name: str, state: str) -> Item:
     """Update the state of an openHAB item"""
     updated_item = openhab_client.update_item_state(item_name, state)
     return updated_item
+
+@mcp.tool()
+def get_item_persistence(item_name: str, start: str, end: str) -> Item:
+    """Get the persistence values of an openHAB item between start and end in format [yyyy-MM-dd'T'HH:mm:ss.SSSZ]"""
+    persistence = openhab_client.get_item_persistence(item_name, start, end)
+    return persistence
 
 @mcp.tool()
 def list_things() -> List[Thing]:
@@ -168,4 +194,4 @@ def run_rule_now(rule_uid: str) -> bool:
     return openhab_client.run_rule_now(rule_uid)
 
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run(transport="streamable-http")
