@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, NamedTuple
 from pydantic import BaseModel, Field
 
 class Item(BaseModel):
