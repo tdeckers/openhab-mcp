@@ -153,6 +153,7 @@ class OpenHABClient:
             "name": item_name,
             "state": item.state or current_item.state,
             "label": item.label or current_item.label,
+            "category": item.category or current_item.category,
             "tags": item.tags or current_item.tags,
             "groupNames": item.groupNames or current_item.groupNames
         }
