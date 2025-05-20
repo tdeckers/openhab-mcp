@@ -22,7 +22,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import JSONRPCError, INVALID_REQUEST
 
 # Import our modules
-from models import Item, Thing, Rule, ItemPersistence
+from models import Item, Thing, ThingSummary, Rule, ItemPersistence
 from openhab_client import OpenHABClient
 
 from mcp.server.session import ServerSession
@@ -113,8 +113,8 @@ def get_item_persistence(item_name: str, start: str = None, end: str = None) -> 
     return persistence
 
 @mcp.tool()
-def list_things() -> List[Thing]:
-    """List all openHAB things"""
+def list_things() -> List[ThingSummary]:
+    """List all openHAB things with summary information"""
     things = openhab_client.list_things()
     return things
 

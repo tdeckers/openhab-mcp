@@ -22,6 +22,13 @@ class ThingStatusInfo(BaseModel):
     statusDetail: str = "NONE"
     description: Optional[str] = None
 
+class ThingSummary(BaseModel):
+    thingTypeUID: str
+    UID: str
+    label: Optional[str] = None
+    bridgeUID: Optional[str] = None
+    statusInfo: Optional[ThingStatusInfo] = None
+
 class Thing(BaseModel):
     thingTypeUID: str
     UID: str
