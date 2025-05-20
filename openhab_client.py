@@ -29,7 +29,7 @@ class OpenHABClient:
         
         return items
     
-    def list_things(
+    def list_items(
         self, 
         page: int = 0, 
         page_size: int = 15,
