@@ -2,10 +2,11 @@ from typing import Dict, List, Optional, Any, NamedTuple
 from pydantic import BaseModel, Field
 
 class Item(BaseModel):
-    type: str = "String"
+    type: str
     name: str
     state: Optional[str] = None
     label: Optional[str] = None
+    category: Optional[str] = None
     tags: List[str] = []
     groupNames: List[str] = []
 
