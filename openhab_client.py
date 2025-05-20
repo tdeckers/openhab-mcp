@@ -3,7 +3,6 @@ import requests
 from typing import Dict, List, Optional, Any
 
 from models import Item, Thing, PaginatedThings, PaginatedItems, PaginationInfo, ThingSummary, Rule, ItemPersistence
-from openhab_mcp_server import get_item, list_items
 
 class OpenHABClient:
     """Client for interacting with the openHAB REST API"""
@@ -117,11 +116,11 @@ class OpenHABClient:
         """Get all items in a specific group"""
         if group_name is None:
             return None
-        group = get_item(group_name)
+        group = self.get_item(group_name)
         if group is None or group.type != "Group":
             raise ValueError(f"Item with name '{group_name}' not found or is not a group")
         
-        items = list_items()
+        items = self.list_items()
         return [item for item in items if group_name in item.groupNames]
     
     def create_item(self, item: Item) -> Item:
