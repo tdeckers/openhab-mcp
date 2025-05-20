@@ -105,6 +105,18 @@ def list_items(
     )
 
 @mcp.tool()
+def get_items_in_group(group_name: str) -> List[Item]:
+    """Get all openHAB items in a specific group"""
+    items = openhab_client.get_items_in_group(group_name)
+    return items
+
+@mcp.tool()
+def get_locations() -> List[str]:
+    """Get all openHAB locations"""
+    locations = openhab_client.list_items(filter_tag="Location")
+    return locations
+
+@mcp.tool()
 def get_item(item_name: str) -> Optional[Item]:
     """Get a specific openHAB item by name"""
     item = openhab_client.get_item(item_name)
