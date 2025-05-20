@@ -41,6 +41,10 @@ class PaginatedThings(BaseModel):
     items: List[ThingSummary]
     pagination: PaginationInfo
 
+class PaginatedItems(BaseModel):
+    items: List[Item]
+    pagination: PaginationInfo
+
 class Thing(BaseModel):
     thingTypeUID: str
     UID: str

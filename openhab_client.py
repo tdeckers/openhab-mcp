@@ -29,6 +29,68 @@ class OpenHABClient:
         
         return items
     
+    def list_things(
+        self, 
+        page: int = 0, 
+        page_size: int = 15,
+        sort_by: str = "name",
+        sort_order: str = "asc",
+        filter_tag: Optional[str] = None
+    ) -> PaginatedItems:
+        """
+        List things with pagination
+        
+        Args:
+            page: 0-based page number
+            page_size: Number of items per page
+            sort_by: Field to sort by (e.g., "label", "thingTypeUID")
+            sort_order: Sort order ("asc" or "desc")
+            
+        Returns:
+            PaginatedThings object containing the paginated results and pagination info
+        """
+        # Get all things
+        if filter_tag:
+            response = self.session.get(f"{self.base_url}/rest/items?tags={filter_tag}")
+        else:
+            response = self.session.get(f"{self.base_url}/rest/items")
+        response.raise_for_status()
+        
+        # Convert to Item objects
+        items = [Item(**item) for item in response.json()]
+        
+        # Sort the items
+        reverse_sort = sort_order.lower() == "desc"
+        try:
+            items.sort(
+                key=lambda x: str(getattr(x, sort_by, "")).lower() if hasattr(x, sort_by) else "",
+                reverse=reverse_sort
+            )
+        except Exception as e:
+            # Fallback to default sort if the requested sort field doesn't exist
+            items.sort(key=lambda x: str(x.name).lower() if x.name else "", reverse=reverse_sort)
+        
+        # Calculate pagination
+        total_items = len(items)
+        total_pages = (total_items + page_size - 1) // page_size if page_size > 0 else 1
+        start_idx = page * page_size
+        end_idx = start_idx + page_size
+        
+        # Get the page of items
+        paginated_items = items[start_idx:end_idx]
+        
+        return PaginatedItems(
+            items=paginated_items,
+            pagination=PaginationInfo(
+                total_items=total_items,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+                has_next=end_idx < total_items,
+                has_previous=start_idx > 0
+            )
+        )
+    
     def get_item(self, item_name: str) -> Optional[Item]:
         """Get a specific item by name"""
         if item_name is None:
