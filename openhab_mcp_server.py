@@ -71,17 +71,17 @@ openhab_client = OpenHABClient(
     password=OPENHAB_PASSWORD
 )
 
-@mcp.tool()
-def list_items(filter_tag: Optional[str] = None)-> List[Item]:
-    """List all openHAB items, optionally filtered by tag"""
-    items = openhab_client.list_items(filter_tag)
-    return items
+# @mcp.tool()
+# def list_items(filter_tag: Optional[str] = None)-> List[Item]:
+#     """List all openHAB items, optionally filtered by tag"""
+#     items = openhab_client.list_items(filter_tag)
+#     return items
 
 @mcp.tool()
 def list_items(
     page: int = 0,
     page_size: int = 15,
-    sort_by: str = "UID",
+    sort_by: str = "name",
     sort_order: str = "asc"
 ) -> PaginatedItems:
     """
@@ -90,7 +90,7 @@ def list_items(
     Args:
         page: 0-based page number (default: 0)
         page_size: Number of items per page (default: 15)
-        sort_by: Field to sort by (e.g., "UID", "label") (default: "UID")
+        sort_by: Field to sort by (e.g., "name", "label") (default: "name")
         sort_order: Sort order ("asc" or "desc") (default: "asc")
     """
     return openhab_client.list_items(
@@ -135,11 +135,11 @@ def get_item_persistence(item_name: str, start: str = None, end: str = None) -> 
     persistence = openhab_client.get_item_persistence(item_name, start, end)
     return persistence
 
-@mcp.tool()
-def list_things() -> List[ThingSummary]:
-    """List all openHAB things with summary information"""
-    things = openhab_client.list_things()
-    return things
+# @mcp.tool()
+# def list_things() -> List[ThingSummary]:
+#     """List all openHAB things with summary information"""
+#     things = openhab_client.list_things()
+#     return things
 
 @mcp.tool()
 def list_things(
