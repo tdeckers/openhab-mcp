@@ -107,7 +107,7 @@ def update_item_state(item_name: str, state: str) -> Item:
     return updated_item
 
 @mcp.tool()
-def get_item_persistence(item_name: str, start: str, end: str) -> Item:
+def get_item_persistence(item_name: str, start: str = None, end: str = None) -> ItemPersistence:
     """Get the persistence values of an openHAB item between start and end in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"""
     persistence = openhab_client.get_item_persistence(item_name, start, end)
     return persistence

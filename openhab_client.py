@@ -85,7 +85,7 @@ class OpenHABClient:
         # Get the updated item
         return self.get_item(item_name)
     
-    def get_item_persistence(self, item_name: str, starttime: str, endtime: str) -> Item:
+    def get_item_persistence(self, item_name: str, starttime: str = None, endtime: str = None) -> ItemPersistence:
         """Get the persistence values of an item between start and end in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"""
         
         pattern = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
@@ -141,7 +141,7 @@ class OpenHABClient:
     
     def list_things(self) -> List[Thing]:
         """List all things"""
-        response = self.session.get(f"{self.base_url}/rest/things")
+        response = self.session.get(f"{self.base_url}/rest/things?summary=true")
         response.raise_for_status()
         return [Thing(**thing) for thing in response.json()]
     
