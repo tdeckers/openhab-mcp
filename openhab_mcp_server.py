@@ -111,9 +111,20 @@ def get_items_in_group(group_name: str) -> List[Item]:
     return items
 
 @mcp.tool()
-def get_locations() -> List[str]:
+def get_locations(
+    page: int = 0,
+    page_size: int = 15,
+    sort_by: str = "name",
+    sort_order: str = "asc"
+) -> PaginatedItems:
     """Get all openHAB locations"""
-    locations = openhab_client.list_items(filter_tag="Location")
+    locations = openhab_client.list_items(
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        filter_tag="Location"
+    )
     return locations
 
 @mcp.tool()
