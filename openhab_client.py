@@ -2,7 +2,7 @@ import re
 import requests
 from typing import Dict, List, Optional, Any
 
-from models import Item, Thing, ThingSummary, Rule, ItemPersistence
+from models import Item, Thing, PaginatedThings, ThingSummary, Rule, ItemPersistence
 
 class OpenHABClient:
     """Client for interacting with the openHAB REST API"""
@@ -139,7 +139,7 @@ class OpenHABClient:
         # Get the updated item
         return self.get_item(item_name)
     
-    def list_things(self) -> List[ThingSummary]:
+    def list_things(self) -> PaginatedThings:
         """List all things with summary information"""
         response = self.session.get(f"{self.base_url}/rest/things?summary=true")
         response.raise_for_status()

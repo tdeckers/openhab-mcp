@@ -22,7 +22,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import JSONRPCError, INVALID_REQUEST
 
 # Import our modules
-from models import Item, Thing, ThingSummary, Rule, ItemPersistence
+from models import Item, Thing, PaginatedThings, ThingSummary, Rule, ItemPersistence
 from openhab_client import OpenHABClient
 
 from mcp.server.session import ServerSession
@@ -124,7 +124,7 @@ def list_things(
     page_size: int = 15,
     sort_by: str = "UID",
     sort_order: str = "asc"
-) -> Dict[str, Any]:
+) -> PaginatedThings:
     """
     List openHAB things with pagination
     
@@ -139,7 +139,7 @@ def list_things(
         page_size=page_size,
         sort_by=sort_by,
         sort_order=sort_order
-    ).dict()
+    )
 
 @mcp.tool()
 def get_thing(thing_uid: str) -> Optional[Thing]:
