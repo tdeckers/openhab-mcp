@@ -95,4 +95,4 @@ class Tag(BaseModel):
     label: Optional[str] = None
     description: Optional[str] = None
     synonyms: List[str] = []
-    editable: bool
+    editable: bool = True

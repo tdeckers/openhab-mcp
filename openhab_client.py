@@ -525,7 +525,9 @@ class OpenHABClient:
         try:
             response = self.session.get(f"{self.base_url}/rest/tags/{tag_uid}")
             response.raise_for_status()
-            return Tag(**response.json())
+            
+            tags = [Tag(**tag) for tag in response.json()]
+            return next((tag for tag in tags if tag.uid == tag_uid), None)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
