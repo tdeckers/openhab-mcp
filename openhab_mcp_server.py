@@ -112,11 +112,34 @@ def get_item_persistence(item_name: str, start: str = None, end: str = None) -> 
     persistence = openhab_client.get_item_persistence(item_name, start, end)
     return persistence
 
+# @mcp.tool()
+# def list_things() -> List[ThingSummary]:
+#     """List all openHAB things with summary information"""
+#     things = openhab_client.list_things()
+#     return things
+
 @mcp.tool()
-def list_things() -> List[ThingSummary]:
-    """List all openHAB things with summary information"""
-    things = openhab_client.list_things()
-    return things
+def list_things(
+    page: int = 0,
+    page_size: int = 15,
+    sort_by: str = "UID",
+    sort_order: str = "asc"
+) -> Dict[str, Any]:
+    """
+    List openHAB things with pagination
+    
+    Args:
+        page: 0-based page number (default: 0)
+        page_size: Number of items per page (default: 15)
+        sort_by: Field to sort by (e.g., "UID", "label") (default: "UID")
+        sort_order: Sort order ("asc" or "desc") (default: "asc")
+    """
+    return openhab_client.list_things(
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order
+    ).dict()
 
 @mcp.tool()
 def get_thing(thing_uid: str) -> Optional[Thing]:

@@ -29,6 +29,18 @@ class ThingSummary(BaseModel):
     bridgeUID: Optional[str] = None
     statusInfo: Optional[ThingStatusInfo] = None
 
+class PaginationInfo(BaseModel):
+    total_items: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_next: bool
+    has_previous: bool
+
+class PaginatedThings(BaseModel):
+    items: List[ThingSummary]
+    pagination: PaginationInfo
+
 class Thing(BaseModel):
     thingTypeUID: str
     UID: str
