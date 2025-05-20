@@ -22,7 +22,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import JSONRPCError, INVALID_REQUEST
 
 # Import our modules
-from models import Item, Thing, Tag, PaginatedThings, PaginatedItems, PaginationInfo, ThingSummary, Rule, ItemPersistence
+from models import Item, ItemDetails, Thing, Tag, PaginatedThings, PaginatedItems, PaginationInfo, ThingSummary, Rule, ItemPersistence
 from openhab_client import OpenHABClient
 
 from mcp.server.session import ServerSession
@@ -104,11 +104,11 @@ def list_items(
         filter_type=filter_type
     )
 
-@mcp.tool()
-def get_items_in_group(group_name: str) -> List[Item]:
-    """Get all openHAB items in a specific group"""
-    items = openhab_client.get_items_in_group(group_name)
-    return items
+# @mcp.tool()
+# def get_items_in_group(group_name: str) -> List[Item]:
+#     """Get all openHAB items in a specific group"""
+#     items = openhab_client.get_items_in_group(group_name)
+#     return items
 
 @mcp.tool()
 def get_locations(
@@ -128,8 +128,8 @@ def get_locations(
     return locations
 
 @mcp.tool()
-def get_item(item_name: str) -> Optional[Item]:
-    """Get a specific openHAB item by name"""
+def get_item(item_name: str) -> Optional[ItemDetails]:
+    """Get a specific openHAB item with more details by name"""
     item = openhab_client.get_item(item_name)
     return item
 

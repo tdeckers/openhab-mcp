@@ -98,7 +98,7 @@ class OpenHABClient:
             )
         )
     
-    def get_item(self, item_name: str) -> Optional[Item]:
+    def get_item(self, item_name: str) -> Optional[ItemDetails]:
         """Get a specific item by name"""
         if item_name is None:
             return None
@@ -106,7 +106,7 @@ class OpenHABClient:
         try:
             response = self.session.get(f"{self.base_url}/rest/items/{item_name}")
             response.raise_for_status()
-            return Item(**response.json())
+            return ItemDetails(**response.json())
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None

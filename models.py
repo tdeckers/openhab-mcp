@@ -10,6 +10,9 @@ class Item(BaseModel):
     tags: List[str] = []
     groupNames: List[str] = []
 
+class ItemDetails(Item):
+    members: List[Item] = []
+
 class DataPoint(NamedTuple):
     time: int
     state: str
