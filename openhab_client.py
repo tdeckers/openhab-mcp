@@ -18,7 +18,7 @@ class OpenHABClient:
         elif username and password:
             self.session.auth = (username, password)
     
-    def list_items(self, filter_tag: Optional[str] = None) -> List[Item]:
+    def _list_items(self, filter_tag: Optional[str] = None) -> List[Item]:
         """List all items, optionally filtered by tag"""
         if filter_tag:
             response = self.session.get(f"{self.base_url}/rest/items?tags={filter_tag}")
@@ -116,11 +116,12 @@ class OpenHABClient:
         """Get all items in a specific group"""
         if group_name is None:
             return None
+        
         group = self.get_item(group_name)
         if group is None or group.type != "Group":
             raise ValueError(f"Item with name '{group_name}' not found or is not a group")
         
-        items = self.list_items()
+        items = self._list_items()
         return [item for item in items if group_name in item.groupNames]
     
     def create_item(self, item: Item) -> Item:
@@ -219,7 +220,7 @@ class OpenHABClient:
         # Get the updated item
         return self.get_item(item_name)
     
-    def list_things(self) -> PaginatedThings:
+    def _list_things(self) -> PaginatedThings:
         """List all things with summary information"""
         response = self.session.get(f"{self.base_url}/rest/things?summary=true")
         response.raise_for_status()
