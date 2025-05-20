@@ -266,5 +266,28 @@ def run_rule_now(rule_uid: str) -> bool:
     """Run an openHAB rule immediately"""
     return openhab_client.run_rule_now(rule_uid)
 
+@mcp.tool()
+def list_tags(parent_tag_uid: Optional[str] = None) -> List[Tag]:
+    """List all openHAB tags, optionally filtered by parent tag"""
+    tags = openhab_client.list_tags(parent_tag_uid)
+    return tags
+
+@mcp.tool()
+def get_tag(tag_uid: str) -> Optional[Tag]:
+    """Get a specific openHAB tag by uid"""
+    tag = openhab_client.get_tag(tag_uid)
+    return tag
+
+@mcp.tool()
+def create_tag(tag: Tag) -> Tag:
+    """Create a new openHAB tag"""
+    created_tag = openhab_client.create_tag(tag)
+    return created_tag
+
+@mcp.tool()
+def delete_tag(tag_uid: str) -> bool:
+    """Delete an openHAB tag"""
+    return openhab_client.delete_tag(tag_uid)
+
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")

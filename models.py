@@ -88,3 +88,11 @@ class Rule(BaseModel):
     triggers: List[RuleTrigger] = []
     conditions: List[RuleCondition] = []
     actions: List[RuleAction] = []
+
+class Tag(BaseModel):
+    uid: str
+    name: str
+    label: Optional[str] = None
+    description: Optional[str] = None
+    synonyms: List[str] = []
+    editable: bool

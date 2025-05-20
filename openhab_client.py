@@ -2,7 +2,7 @@ import re
 import requests
 from typing import Dict, List, Optional, Any
 
-from models import Item, Thing, PaginatedThings, PaginatedItems, PaginationInfo, ThingSummary, Rule, ItemPersistence
+from models import Item, Thing, Tag, PaginatedThings, PaginatedItems, PaginationInfo, ThingSummary, Rule, ItemPersistence
 
 class OpenHABClient:
     """Client for interacting with the openHAB REST API"""
@@ -18,7 +18,7 @@ class OpenHABClient:
         elif username and password:
             self.session.auth = (username, password)
     
-    def _list_items(self, filter_tag: Optional[str] = None) -> List[Item]:
+    def __list_items(self, filter_tag: Optional[str] = None) -> List[Item]:
         """List all items, optionally filtered by tag"""
         if filter_tag:
             response = self.session.get(f"{self.base_url}/rest/items?tags={filter_tag}")
@@ -121,7 +121,7 @@ class OpenHABClient:
         if group is None or group.type != "Group":
             raise ValueError(f"Item with name '{group_name}' not found or is not a group")
         
-        items = self._list_items()
+        items = self.__list_items()
         return [item for item in items if group_name in item.groupNames]
     
     def create_item(self, item: Item) -> Item:
@@ -220,7 +220,7 @@ class OpenHABClient:
         # Get the updated item
         return self.get_item(item_name)
     
-    def _list_things(self) -> PaginatedThings:
+    def __list_things(self) -> List[ThingSummary]:
         """List all things with summary information"""
         response = self.session.get(f"{self.base_url}/rest/things?summary=true")
         response.raise_for_status()
@@ -477,3 +477,56 @@ class OpenHABClient:
         
         response.raise_for_status()
         return True
+
+    def list_tags(self, parent_tag_uid: Optional[str] = None) -> List[Tag]:
+        """
+        List all tags
+        
+        Args:
+            parent_tag_uid: If provided, only return tags that are a subtag of this tag
+
+        Returns:
+            List of tags
+        """
+        response = self.session.get(f"{self.base_url}/rest/tags")
+        response.raise_for_status()
+        
+        tags = [Tag(**tag) for tag in response.json()]
+        
+        if parent_tag_uid:
+            tags = [tag for tag in tags if tag.uid.startswith(f"{parent_tag_uid}_")]
+        
+        return tags
+        
+    def create_tag(self, tag: Tag) -> Tag:
+        """Create a new tag"""
+        if not tag.name:
+            raise ValueError("Tag must have a name")
+
+        if not tag.uid:
+            raise ValueError("Tag must have a uid")
+
+        payload = tag.dict()
+        
+        response = self.session.post(
+            f"{self.base_url}/rest/tags",
+            json=payload
+        )
+        response.raise_for_status()
+        
+        # Get the created tag
+        return self.get_tag(tag.uid)        
+
+    def get_tag(self, tag_uid: str) -> Optional[Tag]:
+        """Get a specific tag by uid"""
+        if tag_uid is None:
+            return None
+        
+        try:
+            response = self.session.get(f"{self.base_url}/rest/tags/{tag_uid}")
+            response.raise_for_status()
+            return Tag(**response.json())
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
