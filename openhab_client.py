@@ -35,7 +35,8 @@ class OpenHABClient:
         page_size: int = 15,
         sort_by: str = "name",
         sort_order: str = "asc",
-        filter_tag: Optional[str] = None
+        filter_tag: Optional[str] = None,
+        filter_type: Optional[str] = None
     ) -> PaginatedItems:
         """
         List things with pagination
@@ -50,8 +51,14 @@ class OpenHABClient:
             PaginatedThings object containing the paginated results and pagination info
         """
         # Get all things
+        params = {}
         if filter_tag:
-            response = self.session.get(f"{self.base_url}/rest/items?tags={filter_tag}")
+            params["tags"] = filter_tag
+        if filter_type:
+            params["type"] = filter_type
+        
+        if params:
+            response = self.session.get(f"{self.base_url}/rest/items", params=params)
         else:
             response = self.session.get(f"{self.base_url}/rest/items")
         response.raise_for_status()

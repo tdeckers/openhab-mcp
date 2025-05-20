@@ -82,7 +82,9 @@ def list_items(
     page: int = 0,
     page_size: int = 15,
     sort_by: str = "name",
-    sort_order: str = "asc"
+    sort_order: str = "asc",
+    filter_tag: str = None,
+    filter_type: str = None
 ) -> PaginatedItems:
     """
     List openHAB items with pagination
@@ -97,7 +99,9 @@ def list_items(
         page=page,
         page_size=page_size,
         sort_by=sort_by,
-        sort_order=sort_order
+        sort_order=sort_order,
+        filter_tag=filter_tag,
+        filter_type=filter_type
     )
 
 @mcp.tool()
