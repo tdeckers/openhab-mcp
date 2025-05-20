@@ -22,7 +22,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import JSONRPCError, INVALID_REQUEST
 
 # Import our modules
-from models import Item, Thing, Rule
+from models import Item, Thing, Rule, ItemPersistence
 from openhab_client import OpenHABClient
 
 from mcp.server.session import ServerSession
