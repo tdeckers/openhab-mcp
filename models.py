@@ -26,37 +26,16 @@ class ThingStatusInfo(BaseModel):
     statusDetail: str = "NONE"
     description: Optional[str] = None
 
-class ThingSummary(BaseModel):
-    thingTypeUID: str
-    UID: str
-    label: Optional[str] = None
-    bridgeUID: Optional[str] = None
-    statusInfo: Optional[ThingStatusInfo] = None
-
-class PaginationInfo(BaseModel):
-    total_items: int
-    page: int
-    page_size: int
-    total_pages: int
-    has_next: bool
-    has_previous: bool
-
-class PaginatedThings(BaseModel):
-    items: List[ThingSummary]
-    pagination: PaginationInfo
-
-class PaginatedItems(BaseModel):
-    items: List[Item]
-    pagination: PaginationInfo
-
 class Thing(BaseModel):
     thingTypeUID: str
     UID: str
     label: Optional[str] = None
     bridgeUID: Optional[str] = None
+    statusInfo: Optional[ThingStatusInfo] = None
+
+class ThingDetails(Thing):
     configuration: Dict[str, Any] = Field(default_factory=dict)
     properties: Dict[str, str] = Field(default_factory=dict)
-    statusInfo: Optional[ThingStatusInfo] = None
     channels: List[Dict[str, Any]] = Field(default_factory=list)
 
 class RuleStatus(BaseModel):
@@ -82,16 +61,18 @@ class RuleCondition(BaseModel):
 class Rule(BaseModel):
     uid: str
     name: str
-    description: Optional[str] = None
     status: Optional[RuleStatus] = None
     tags: List[str] = []
     visibility: Optional[str] = None
     editable: bool = True
-    configuration: Dict[str, Any] = Field(default_factory=dict)
-    configDescriptions: List[Dict[str, Any]] = Field(default_factory=list)
+
+class RuleDetails(Rule):
+    description: Optional[str] = None
     triggers: List[RuleTrigger] = []
     conditions: List[RuleCondition] = []
     actions: List[RuleAction] = []
+    configuration: Dict[str, Any] = Field(default_factory=dict)
+    configDescriptions: List[Dict[str, Any]] = Field(default_factory=list)
 
 class Tag(BaseModel):
     uid: str
@@ -100,3 +81,23 @@ class Tag(BaseModel):
     description: Optional[str] = None
     synonyms: List[str] = []
     editable: bool = True
+
+class PaginationInfo(BaseModel):
+    total_elements: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_next: bool
+    has_previous: bool
+
+class PaginatedThings(BaseModel):
+    things: List[Thing]
+    pagination: PaginationInfo
+
+class PaginatedItems(BaseModel):
+    items: List[Item]
+    pagination: PaginationInfo
+
+class PaginatedRules(BaseModel):
+    rules: List[Rule]
+    pagination: PaginationInfo

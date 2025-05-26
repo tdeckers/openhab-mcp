@@ -2,90 +2,115 @@ import re
 import requests
 from typing import Dict, List, Optional, Any
 
-from models import Item, ItemDetails, Thing, Tag, PaginatedThings, PaginatedItems, PaginationInfo, ThingSummary, Rule, ItemPersistence
+from models import (
+    Item,
+    ItemDetails,
+    Thing,
+    ThingDetails,
+    Tag,
+    PaginatedThings,
+    PaginatedItems,
+    PaginationInfo,
+    Rule,
+    RuleDetails,
+    ItemPersistence,
+)
+
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+
 
 class OpenHABClient:
     """Client for interacting with the openHAB REST API"""
-    
-    def __init__(self, base_url: str, api_token: Optional[str] = None, 
-                 username: Optional[str] = None, password: Optional[str] = None):
-        self.base_url = base_url.rstrip('/')
+
+    def __init__(
+        self,
+        base_url: str,
+        api_token: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+    ):
+        self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
-        
+
         # Set up authentication
         if api_token:
-            self.session.headers.update({'Authorization': f'Bearer {api_token}'})
+            self.session.headers.update({"Authorization": f"Bearer {api_token}"})
         elif username and password:
             self.session.auth = (username, password)
-    
+
     def __list_items(self, filter_tag: Optional[str] = None) -> List[Item]:
         """List all items, optionally filtered by tag"""
         if filter_tag:
             response = self.session.get(f"{self.base_url}/rest/items?tags={filter_tag}")
         else:
-            response = self.session.get(f"{self.base_url}/rest/items")      
+            response = self.session.get(f"{self.base_url}/rest/items")
         response.raise_for_status()
         items = [Item(**item) for item in response.json()]
-        
+
         return items
-    
+
     def list_items(
-        self, 
-        page: int = 0, 
+        self,
+        page: int = 1,
         page_size: int = 15,
         sort_by: str = "name",
         sort_order: str = "asc",
         filter_tag: Optional[str] = None,
-        filter_type: Optional[str] = None
+        filter_type: Optional[str] = None,
     ) -> PaginatedItems:
         """
-        List things with pagination
-        
+        List items with pagination
+
         Args:
-            page: 0-based page number
+            page: 1-based page number
             page_size: Number of items per page
             sort_by: Field to sort by (e.g., "label", "thingTypeUID")
             sort_order: Sort order ("asc" or "desc")
-            
+
         Returns:
-            PaginatedThings object containing the paginated results and pagination info
+            PaginatedItems object containing the paginated results and pagination info
         """
-        # Get all things
+        # Get all items
         params = {}
         if filter_tag:
             params["tags"] = filter_tag
         if filter_type:
             params["type"] = filter_type
-        
+
         if params:
             response = self.session.get(f"{self.base_url}/rest/items", params=params)
         else:
             response = self.session.get(f"{self.base_url}/rest/items")
         response.raise_for_status()
-        
+
         # Convert to Item objects
         items = [Item(**item) for item in response.json()]
-        
+
         # Sort the items
         reverse_sort = sort_order.lower() == "desc"
         try:
             items.sort(
-                key=lambda x: str(getattr(x, sort_by, "")).lower() if hasattr(x, sort_by) else "",
-                reverse=reverse_sort
+                key=lambda x: (
+                    str(getattr(x, sort_by, "")).lower() if hasattr(x, sort_by) else ""
+                ),
+                reverse=reverse_sort,
             )
         except Exception as e:
             # Fallback to default sort if the requested sort field doesn't exist
-            items.sort(key=lambda x: str(x.name).lower() if x.name else "", reverse=reverse_sort)
-        
+            items.sort(
+                key=lambda x: str(x.name).lower() if x.name else "",
+                reverse=reverse_sort,
+            )
+
         # Calculate pagination
         total_items = len(items)
         total_pages = (total_items + page_size - 1) // page_size if page_size > 0 else 1
-        start_idx = page * page_size
+        start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        
+
         # Get the page of items
         paginated_items = items[start_idx:end_idx]
-        
+
         return PaginatedItems(
             items=paginated_items,
             pagination=PaginationInfo(
@@ -94,15 +119,15 @@ class OpenHABClient:
                 page_size=page_size,
                 total_pages=total_pages,
                 has_next=end_idx < total_items,
-                has_previous=start_idx > 0
-            )
+                has_previous=start_idx > 0,
+            ),
         )
-    
-    def get_item(self, item_name: str) -> Optional[ItemDetails]:
+
+    def get_item_details(self, item_name: str) -> Optional[ItemDetails]:
         """Get a specific item by name"""
         if item_name is None:
             return None
-        
+
         try:
             response = self.session.get(f"{self.base_url}/rest/items/{item_name}")
             response.raise_for_status()
@@ -111,42 +136,29 @@ class OpenHABClient:
             if e.response.status_code == 404:
                 return None
             raise
-    
-    def get_items_in_group(self, group_name: str) -> List[Item]:
-        """Get all items in a specific group"""
-        if group_name is None:
-            return None
-        
-        group = self.get_item(group_name)
-        if group is None or group.type != "Group":
-            raise ValueError(f"Item with name '{group_name}' not found or is not a group")
-        
-        items = self.__list_items()
-        return [item for item in items if group_name in item.groupNames]
-    
+
     def create_item(self, item: Item) -> Item:
         """Create a new item"""
         if not item.name:
             raise ValueError("Item must have a name")
 
-        payload = item.dict()
-        
+        payload = item.model_dump()
+
         response = self.session.put(
-            f"{self.base_url}/rest/items/{item.name}",
-            json=payload
+            f"{self.base_url}/rest/items/{item.name}", json=payload
         )
         response.raise_for_status()
-        
+
         # Get the created item
-        return self.get_item(item.name)
-    
-    def update_item(self, item_name: str, item: Item) -> Item:
+        return self.get_item_details(item.name)
+
+    def update_item(self, item_name: str, item: Item) -> ItemDetails:
         """Update an existing item"""
         # Get current item to merge with updates
-        current_item = self.get_item(item_name)
+        current_item = self.get_item_details(item_name)
         if not current_item:
             raise ValueError(f"Item with name '{item_name}' not found")
-        
+
         # Prepare update payload
         payload = {
             "type": item.type or current_item.type,
@@ -155,124 +167,131 @@ class OpenHABClient:
             "label": item.label or current_item.label,
             "category": item.category or current_item.category,
             "tags": item.tags or current_item.tags,
-            "groupNames": item.groupNames or current_item.groupNames
+            "groupNames": item.groupNames or current_item.groupNames,
         }
-        
+
         response = self.session.put(
-            f"{self.base_url}/rest/items/{item_name}",
-            json=payload
+            f"{self.base_url}/rest/items/{item_name}", json=payload
         )
         response.raise_for_status()
-        
+
         # Get the updated item
-        return self.get_item(item_name)
-    
-    def get_item_persistence(self, item_name: str, starttime: str = None, endtime: str = None) -> ItemPersistence:
-        """Get the persistence values of an item between start and end in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"""
-        
-        pattern = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        return self.get_item_details(item_name)
+
+    def get_item_persistence(
+        self, item_name: str, starttime: str = None, endtime: str = None
+    ) -> ItemPersistence:
+        """
+        Get the persistence state values of an item between starttime and endtime
+        in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
+        """
+
         if item_name is None:
             return None
-        
+
         params = {}
         if starttime:
-            if not pattern.match(starttime):
-                raise ValueError("Start time must be in format yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+            if not DATE_PATTERN.match(starttime):
+                raise ValueError(
+                    f"Start time must be in format {DATE_PATTERN.pattern}"
+                )
             params["starttime"] = starttime
-        
+
         if endtime:
-            if not pattern.match(endtime):
-                raise ValueError("End time must be in format yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+            if not DATE_PATTERN.match(endtime):
+                raise ValueError(
+                    f"End time must be in format {DATE_PATTERN.pattern}"
+                )
             params["endtime"] = endtime
-        
+
         try:
-            response = self.session.get(f"{self.base_url}/rest/persistence/items/{item_name}", params=params)
+            response = self.session.get(
+                f"{self.base_url}/rest/persistence/items/{item_name}", params=params
+            )
             response.raise_for_status()
             return ItemPersistence(**response.json())
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
             raise
-    
+
     def delete_item(self, item_name: str) -> bool:
         """Delete an item"""
         response = self.session.delete(f"{self.base_url}/rest/items/{item_name}")
-        
+
         if response.status_code == 404:
             raise ValueError(f"Item with name '{item_name}' not found")
-        
+
         response.raise_for_status()
         return True
-    
-    def update_item_state(self, item_name: str, state: str) -> Item:
+
+    def update_item_state(self, item_name: str, state: str) -> ItemDetails:
         """Update just the state of an item"""
         # Check if item exists
         if not self.get_item(item_name):
             raise ValueError(f"Item with name '{item_name}' not found")
-        
+
         # Update state
         response = self.session.post(
             f"{self.base_url}/rest/items/{item_name}",
             data=state,
-            headers={"Content-Type": "text/plain"}
+            headers={"Content-Type": "text/plain"},
         )
         response.raise_for_status()
-        
+
         # Get the updated item
-        return self.get_item(item_name)
-    
-    def __list_things(self) -> List[ThingSummary]:
-        """List all things with summary information"""
-        response = self.session.get(f"{self.base_url}/rest/things?summary=true")
-        response.raise_for_status()
-        return [ThingSummary(**thing) for thing in response.json()]
-    
+        return self.get_item_details(item_name)
+
     def list_things(
-        self, 
-        page: int = 0, 
+        self,
+        page: int = 1,
         page_size: int = 15,
         sort_by: str = "UID",
-        sort_order: str = "asc"
+        sort_order: str = "asc",
     ) -> PaginatedThings:
         """
         List things with pagination
-        
+
         Args:
-            page: 0-based page number
+            page: 1-based page number
             page_size: Number of items per page
             sort_by: Field to sort by (e.g., "label", "thingTypeUID")
             sort_order: Sort order ("asc" or "desc")
-            
+
         Returns:
             PaginatedThings object containing the paginated results and pagination info
         """
         # Get all things
         response = self.session.get(f"{self.base_url}/rest/things?summary=true")
         response.raise_for_status()
-        
-        # Convert to ThingSummary objects
-        things = [ThingSummary(**thing) for thing in response.json()]
-        
+
+        # Convert to Thing objects
+        things = [Thing(**thing) for thing in response.json()]
+
         # Sort the things
         reverse_sort = sort_order.lower() == "desc"
         try:
             things.sort(
-                key=lambda x: str(getattr(x, sort_by, "")).lower() if hasattr(x, sort_by) else "",
-                reverse=reverse_sort
+                key=lambda x: (
+                    str(getattr(x, sort_by, "")).lower() if hasattr(x, sort_by) else ""
+                ),
+                reverse=reverse_sort,
             )
         except Exception as e:
             # Fallback to default sort if the requested sort field doesn't exist
-            things.sort(key=lambda x: str(x.UID).lower() if x.UID else "", reverse=reverse_sort)
-        
+            things.sort(
+                key=lambda x: str(x.UID).lower() if x.UID else "", reverse=reverse_sort
+            )
+
         # Calculate pagination
         total_items = len(things)
         total_pages = (total_items + page_size - 1) // page_size if page_size > 0 else 1
-        start_idx = page * page_size
+        start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        
+
         # Get the page of items
         paginated_items = things[start_idx:end_idx]
-        
+
         return PaginatedThings(
             items=paginated_items,
             pagination=PaginationInfo(
@@ -281,24 +300,24 @@ class OpenHABClient:
                 page_size=page_size,
                 total_pages=total_pages,
                 has_next=end_idx < total_items,
-                has_previous=start_idx > 0
-            )
+                has_previous=start_idx > 0,
+            ),
         )
 
-    def get_thing(self, thing_uid: str) -> Optional[Thing]:
+    def get_thing_details(self, thing_uid: str) -> Optional[ThingDetails]:
         """Get a specific thing by UID"""
         if thing_uid is None:
             return None
-        
+
         try:
             response = self.session.get(f"{self.base_url}/rest/things/{thing_uid}")
             response.raise_for_status()
-            return Thing(**response.json())
+            return ThingDetails(**response.json())
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
             raise
-    
+
     def list_rules(self, filter_tag: Optional[str] = None) -> List[Rule]:
         """List all rules, optionally filtered by tag"""
         if filter_tag:
@@ -307,31 +326,31 @@ class OpenHABClient:
             response = self.session.get(f"{self.base_url}/rest/rules")
         response.raise_for_status()
         return [Rule(**rule) for rule in response.json()]
-    
-    def get_rule(self, rule_uid: str) -> Optional[Rule]:
+
+    def get_rule_details(self, rule_uid: str) -> Optional[RuleDetails]:
         """Get a specific rule by UID"""
         if rule_uid is None:
             return None
-        
+
         try:
             response = self.session.get(f"{self.base_url}/rest/rules/{rule_uid}")
             response.raise_for_status()
-            return Rule(**response.json())
+            return RuleDetails(**response.json())
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
             raise
-    
-    def update_rule(self, rule_uid: str, rule_updates: Dict[str, Any]) -> Rule:
+
+    def update_rule(self, rule_uid: str, rule_updates: Dict[str, Any]) -> RuleDetails:
         """Update an existing rule with partial updates"""
         # Check if rule exists
-        current_rule = self.get_rule(rule_uid)
+        current_rule = self.get_rule_details(rule_uid)
         if not current_rule:
             raise ValueError(f"Rule with UID '{rule_uid}' not found")
-        
+
         # Get the current rule as a dictionary
         current_rule_dict = current_rule.dict()
-        
+
         # Merge with updates (only updating provided fields)
         for key, value in rule_updates.items():
             if key == "actions" and isinstance(value, list) and len(value) > 0:
@@ -353,18 +372,19 @@ class OpenHABClient:
             else:
                 # For other fields, just update directly
                 current_rule_dict[key] = value
-        
+
         # Send update request
         response = self.session.put(
-            f"{self.base_url}/rest/rules/{rule_uid}",
-            json=current_rule_dict
+            f"{self.base_url}/rest/rules/{rule_uid}", json=current_rule_dict
         )
         response.raise_for_status()
-        
+
         # Get the updated rule
-        return self.get_rule(rule_uid)
-    
-    def update_rule_script_action(self, rule_uid: str, action_id: str, script_type: str, script_content: str) -> Rule:
+        return self.get_rule_details(rule_uid)
+
+    def update_rule_script_action(
+        self, rule_uid: str, action_id: str, script_type: str, script_content: str
+    ) -> RuleDetails:
         """Update a script action in a rule"""
         # Prepare the action update
         action_update = {
@@ -372,38 +392,35 @@ class OpenHABClient:
             "type": "script.ScriptAction",
             "configuration": {
                 "type": script_type,  # e.g., "application/javascript"
-                "script": script_content
-            }
+                "script": script_content,
+            },
         }
-        
+
         # Update the rule with just this action
         return self.update_rule(rule_uid, {"actions": [action_update]})
-    
-    def create_rule(self, rule: Rule) -> Rule:
+
+    def create_rule(self, rule: RuleDetails) -> RuleDetails:
         """Create a new rule"""
         if not rule.uid:
             raise ValueError("Rule must have a UID")
-        
+
         # Prepare payload
-        payload = rule.dict()
-        
+        payload = rule.model_dump()
+
         # Send create request
-        response = self.session.post(
-            f"{self.base_url}/rest/rules",
-            json=payload
-        )
+        response = self.session.post(f"{self.base_url}/rest/rules", json=payload)
         response.raise_for_status()
-        
+
         # Get the created rule
-        return self.get_rule(rule.uid)
-    
+        return self.get_rule_details(rule.uid)
+
     def delete_rule(self, rule_uid: str) -> bool:
         """Delete a rule"""
         response = self.session.delete(f"{self.base_url}/rest/rules/{rule_uid}")
-        
+
         if response.status_code == 404:
             raise ValueError(f"Rule with UID '{rule_uid}' not found")
-        
+
         response.raise_for_status()
         return True
 
@@ -411,16 +428,16 @@ class OpenHABClient:
         """List all scripts. A script is a rule without a trigger and tag of 'Script'"""
         return self.list_rules(filter_tag="Script")
 
-
-    def get_script(self, script_id: str) -> Optional[Rule]:
+    def get_script_details(self, script_id: str) -> Optional[RuleDetails]:
         """Get a specific script by ID. A script is a rule without a trigger and tag of 'Script'"""
         if script_id is None:
             return None
-        
-        return self.get_rule(script_id)
-    
 
-    def create_script(self, script_id: str, script_type: str, content: str) -> Rule:
+        return self.get_rule_details(script_id)
+
+    def create_script(
+        self, script_id: str, script_type: str, content: str
+    ) -> RuleDetails:
         """Create a new script.  A script is a rule without a trigger and tag of 'Script'"""
         if not script_id:
             raise ValueError("Script must have an ID")
@@ -428,7 +445,7 @@ class OpenHABClient:
             raise ValueError("Script content cannot be empty")
         if not script_type:
             raise ValueError("Script type cannot be empty")
-        
+
         rule = Rule(
             uid=script_id,
             name=script_id,
@@ -440,49 +457,53 @@ class OpenHABClient:
                     "type": "script.ScriptAction",
                     "configuration": {
                         "type": script_type,  # e.g., "application/javascript"
-                        "script": content
-                    }
+                        "script": content,
+                    },
                 }
-            ]
+            ],
         )
 
         return self.create_rule(rule)
-    
-    def update_script(self, script_id: str, script_type: str, content: str) -> Rule:
+
+    def update_script(
+        self, script_id: str, script_type: str, content: str
+    ) -> RuleDetails:
         """Update an existing script. A script is a rule without a trigger and tag of 'Script'"""
-        rule = self.get_rule(script_id)
+        rule = self.get_rule_details(script_id)
         # Check if script exists
         if not rule:
             raise ValueError(f"Script with ID '{script_id}' not found")
 
-        return self.update_rule_script_action(script_id, rule.actions[0].id, script_type, content)
-    
+        return self.update_rule_script_action(
+            script_id, rule.actions[0].id, script_type, content
+        )
+
     def delete_script(self, script_id: str) -> bool:
         """Delete a script. A script is a rule without a trigger and tag of 'Script'"""
         return self.delete_rule(script_id)
-    
+
     def run_rule_now(self, rule_uid: str) -> bool:
         """Run a rule immediately"""
         if not rule_uid:
             raise ValueError("Rule UID cannot be empty")
-            
+
         # Check if rule exists
         if not self.get_rule(rule_uid):
             raise ValueError(f"Rule with UID '{rule_uid}' not found")
-        
+
         # Send request to run the rule
         response = self.session.post(f"{self.base_url}/rest/rules/{rule_uid}/runnow")
-        
+
         if response.status_code == 404:
             raise ValueError(f"Rule with UID '{rule_uid}' not found")
-        
+
         response.raise_for_status()
         return True
 
     def list_tags(self, parent_tag_uid: Optional[str] = None) -> List[Tag]:
         """
         List all tags
-        
+
         Args:
             parent_tag_uid: If provided, only return tags that are a subtag of this tag
 
@@ -491,14 +512,14 @@ class OpenHABClient:
         """
         response = self.session.get(f"{self.base_url}/rest/tags")
         response.raise_for_status()
-        
+
         tags = [Tag(**tag) for tag in response.json()]
-        
+
         if parent_tag_uid:
             tags = [tag for tag in tags if tag.uid.startswith(f"{parent_tag_uid}_")]
-        
+
         return tags
-        
+
     def create_tag(self, tag: Tag) -> Tag:
         """Create a new tag"""
         if not tag.name:
@@ -508,25 +529,22 @@ class OpenHABClient:
             raise ValueError("Tag must have a uid")
 
         payload = tag.dict()
-        
-        response = self.session.post(
-            f"{self.base_url}/rest/tags",
-            json=payload
-        )
+
+        response = self.session.post(f"{self.base_url}/rest/tags", json=payload)
         response.raise_for_status()
-        
+
         # Get the created tag
-        return self.get_tag(tag.uid)        
+        return self.get_tag(tag.uid)
 
     def get_tag(self, tag_uid: str) -> Optional[Tag]:
         """Get a specific tag by uid"""
         if tag_uid is None:
             return None
-        
+
         try:
             response = self.session.get(f"{self.base_url}/rest/tags/{tag_uid}")
             response.raise_for_status()
-            
+
             tags = [Tag(**tag) for tag in response.json()]
             return next((tag for tag in tags if tag.uid == tag_uid), None)
         except requests.exceptions.HTTPError as e:
