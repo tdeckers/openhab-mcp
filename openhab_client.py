@@ -11,6 +11,7 @@ from models import (
     PaginatedThings,
     PaginatedItems,
     PaginationInfo,
+    PaginatedRules,
     Rule,
     RuleDetails,
     ItemPersistence,
@@ -34,20 +35,9 @@ class OpenHABClient:
 
         # Set up authentication
         if api_token:
-            self.session.headers.update({"Authorization": f"Bearer {api_token}"})
+            self.session.headers.update({"X-OPENHAB-TOKEN": api_token})
         elif username and password:
             self.session.auth = (username, password)
-
-    def __list_items(self, filter_tag: Optional[str] = None) -> List[Item]:
-        """List all items, optionally filtered by tag"""
-        if filter_tag:
-            response = self.session.get(f"{self.base_url}/rest/items?tags={filter_tag}")
-        else:
-            response = self.session.get(f"{self.base_url}/rest/items")
-        response.raise_for_status()
-        items = [Item(**item) for item in response.json()]
-
-        return items
 
     def list_items(
         self,
@@ -77,10 +67,7 @@ class OpenHABClient:
         if filter_type:
             params["type"] = filter_type
 
-        if params:
-            response = self.session.get(f"{self.base_url}/rest/items", params=params)
-        else:
-            response = self.session.get(f"{self.base_url}/rest/items")
+        response = self.session.get(f"{self.base_url}/rest/items", params=params)
         response.raise_for_status()
 
         # Convert to Item objects
@@ -103,8 +90,10 @@ class OpenHABClient:
             )
 
         # Calculate pagination
-        total_items = len(items)
-        total_pages = (total_items + page_size - 1) // page_size if page_size > 0 else 1
+        total_elements = len(items)
+        total_pages = (
+            (total_elements + page_size - 1) // page_size if page_size > 0 else 1
+        )
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
 
@@ -114,14 +103,38 @@ class OpenHABClient:
         return PaginatedItems(
             items=paginated_items,
             pagination=PaginationInfo(
-                total_items=total_items,
+                total_elements=total_elements,
                 page=page,
                 page_size=page_size,
                 total_pages=total_pages,
-                has_next=end_idx < total_items,
+                has_next=end_idx < total_elements,
                 has_previous=start_idx > 0,
             ),
         )
+
+    def list_locations(
+        self,
+        page: int = 1,
+        page_size: int = 15,
+        sort_by: str = "name",
+        sort_order: str = "asc",
+    ) -> PaginatedItems:
+        """
+        List locations with pagination
+
+        Args:
+            page: 1-based page number
+            page_size: Number of items per page
+            sort_by: Field to sort by (e.g., "name")
+            sort_order: Sort order ("asc" or "desc")
+
+        Returns:
+            PaginatedItems object containing the paginated results and pagination info
+        """
+        # Get all locations
+        locations = self.list_items(page, page_size, sort_by, sort_order, filter_tag="Location")
+
+        return locations
 
     def get_item_details(self, item_name: str) -> Optional[ItemDetails]:
         """Get a specific item by name"""
@@ -137,12 +150,12 @@ class OpenHABClient:
                 return None
             raise
 
-    def create_item(self, item: Item) -> Item:
+    def create_item(self, item: ItemDetails) -> ItemDetails:
         """Create a new item"""
         if not item.name:
             raise ValueError("Item must have a name")
 
-        payload = item.model_dump()
+        payload = item.dict()
 
         response = self.session.put(
             f"{self.base_url}/rest/items/{item.name}", json=payload
@@ -152,7 +165,7 @@ class OpenHABClient:
         # Get the created item
         return self.get_item_details(item.name)
 
-    def update_item(self, item_name: str, item: Item) -> ItemDetails:
+    def update_item(self, item_name: str, item: ItemDetails) -> ItemDetails:
         """Update an existing item"""
         # Get current item to merge with updates
         current_item = self.get_item_details(item_name)
@@ -192,16 +205,12 @@ class OpenHABClient:
         params = {}
         if starttime:
             if not DATE_PATTERN.match(starttime):
-                raise ValueError(
-                    f"Start time must be in format {DATE_PATTERN.pattern}"
-                )
+                raise ValueError(f"Start time must be in format {DATE_PATTERN.pattern}")
             params["starttime"] = starttime
 
         if endtime:
             if not DATE_PATTERN.match(endtime):
-                raise ValueError(
-                    f"End time must be in format {DATE_PATTERN.pattern}"
-                )
+                raise ValueError(f"End time must be in format {DATE_PATTERN.pattern}")
             params["endtime"] = endtime
 
         try:
@@ -228,7 +237,7 @@ class OpenHABClient:
     def update_item_state(self, item_name: str, state: str) -> ItemDetails:
         """Update just the state of an item"""
         # Check if item exists
-        if not self.get_item(item_name):
+        if not self.get_item_details(item_name):
             raise ValueError(f"Item with name '{item_name}' not found")
 
         # Update state
@@ -284,8 +293,10 @@ class OpenHABClient:
             )
 
         # Calculate pagination
-        total_items = len(things)
-        total_pages = (total_items + page_size - 1) // page_size if page_size > 0 else 1
+        total_elements = len(things)
+        total_pages = (
+            (total_elements + page_size - 1) // page_size if page_size > 0 else 1
+        )
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
 
@@ -293,13 +304,13 @@ class OpenHABClient:
         paginated_items = things[start_idx:end_idx]
 
         return PaginatedThings(
-            items=paginated_items,
+            things=paginated_items,
             pagination=PaginationInfo(
-                total_items=total_items,
+                total_elements=total_elements,
                 page=page,
                 page_size=page_size,
                 total_pages=total_pages,
-                has_next=end_idx < total_items,
+                has_next=end_idx < total_elements,
                 has_previous=start_idx > 0,
             ),
         )
@@ -318,14 +329,73 @@ class OpenHABClient:
                 return None
             raise
 
-    def list_rules(self, filter_tag: Optional[str] = None) -> List[Rule]:
-        """List all rules, optionally filtered by tag"""
+    def list_rules(
+        self,
+        page: int = 1,
+        page_size: int = 15,
+        sort_by: str = "name",
+        sort_order: str = "asc",
+        filter_tag: Optional[str] = None,
+    ) -> PaginatedRules:
+        """
+        List all rules, optionally filtered by tag
+
+        Args:
+            page: 1-based page number (default: 1)
+            page_size: Number of elements per page (default: 15)
+            sort_by: Field to sort by (e.g., "name", "label") (default: "name")
+            sort_order: Sort order ("asc" or "desc") (default: "asc")
+            filter_tag: Tag to filter rules by (default: None)
+        """
+        # Prepare query parameters
+        params = {}
         if filter_tag:
-            response = self.session.get(f"{self.base_url}/rest/rules?tags={filter_tag}")
-        else:
-            response = self.session.get(f"{self.base_url}/rest/rules")
+            params["tags"] = filter_tag
+
+        # Make the request
+        response = self.session.get(f"{self.base_url}/rest/rules", params=params)
         response.raise_for_status()
-        return [Rule(**rule) for rule in response.json()]
+
+        rules = [Rule(**rule) for rule in response.json()]
+
+        # Sort the rules
+        reverse_sort = sort_order.lower() == "desc"
+        try:
+            rules.sort(
+                key=lambda x: (
+                    str(getattr(x, sort_by, "")).lower() if hasattr(x, sort_by) else ""
+                ),
+                reverse=reverse_sort,
+            )
+        except Exception:
+            # Fallback to default sort if the requested sort field doesn't exist
+            rules.sort(
+                key=lambda x: str(x.name).lower() if x.name else "",
+                reverse=reverse_sort,
+            )
+
+        # Calculate pagination
+        total_elements = len(rules)
+        total_pages = (
+            (total_elements + page_size - 1) // page_size if page_size > 0 else 1
+        )
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+
+        # Get the page of rules
+        paginated_rules = rules[start_idx:end_idx]
+
+        return PaginatedRules(
+            rules=paginated_rules,
+            pagination=PaginationInfo(
+                total_elements=total_elements,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+                has_next=end_idx < total_elements,
+                has_previous=start_idx > 0,
+            ),
+        )
 
     def get_rule_details(self, rule_uid: str) -> Optional[RuleDetails]:
         """Get a specific rule by UID"""
@@ -424,9 +494,29 @@ class OpenHABClient:
         response.raise_for_status()
         return True
 
-    def list_scripts(self) -> List[Rule]:
-        """List all scripts. A script is a rule without a trigger and tag of 'Script'"""
-        return self.list_rules(filter_tag="Script")
+    def list_scripts(
+        self,
+        page: int = 1,
+        page_size: int = 15,
+        sort_by: str = "name",
+        sort_order: str = "asc",
+    ) -> PaginatedRules:
+        """
+        List all scripts. A script is a rule without a trigger and tag of 'Script'
+
+        Args:
+            page: 1-based page number (default: 1)
+            page_size: Number of elements per page (default: 15)
+            sort_by: Field to sort by (e.g., "name", "label") (default: "name")
+            sort_order: Sort order ("asc" or "desc") (default: "asc")
+        """
+        return self.list_rules(
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filter_tag="Script",
+        )
 
     def get_script_details(self, script_id: str) -> Optional[RuleDetails]:
         """Get a specific script by ID. A script is a rule without a trigger and tag of 'Script'"""
@@ -446,7 +536,7 @@ class OpenHABClient:
         if not script_type:
             raise ValueError("Script type cannot be empty")
 
-        rule = Rule(
+        rule = RuleDetails(
             uid=script_id,
             name=script_id,
             tags=["Script"],

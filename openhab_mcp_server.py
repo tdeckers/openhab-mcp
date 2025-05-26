@@ -101,8 +101,8 @@ def list_items(
     page_size: int = 15,
     sort_by: str = "name",
     sort_order: str = "asc",
-    filter_tag: str = None,
-    filter_type: str = None,
+    filter_tag: Optional[str] = None,
+    filter_type: Optional[str] = None,
 ) -> PaginatedItems:
     """
     List openHAB items with basic information with pagination
@@ -131,14 +131,14 @@ def get_item_details(item_name: str) -> Optional[ItemDetails]:
 
 
 @mcp.tool()
-def create_item(item: Item) -> Item:
+def create_item(item: ItemDetails) -> ItemDetails:
     """Create a new openHAB item"""
     created_item = openhab_client.create_item(item)
     return created_item
 
 
 @mcp.tool()
-def update_item(item_name: str, item: Item) -> Item:
+def update_item(item_name: str, item: ItemDetails) -> ItemDetails:
     """Update an existing openHAB item"""
     updated_item = openhab_client.update_item(item_name, item)
     return updated_item
