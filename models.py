@@ -32,10 +32,10 @@ class Thing(BaseModel):
     label: Optional[str] = None
     bridgeUID: Optional[str] = None
     statusInfo: Optional[ThingStatusInfo] = None
-
-class ThingDetails(Thing):
     configuration: Dict[str, Any] = Field(default_factory=dict)
     properties: Dict[str, str] = Field(default_factory=dict)
+
+class ThingDetails(Thing):
     channels: List[Dict[str, Any]] = Field(default_factory=list)
 
 class RuleStatus(BaseModel):

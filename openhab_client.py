@@ -271,7 +271,7 @@ class OpenHABClient:
             PaginatedThings object containing the paginated results and pagination info
         """
         # Get all things
-        response = self.session.get(f"{self.base_url}/rest/things?summary=true")
+        response = self.session.get(f"{self.base_url}/rest/things")
         response.raise_for_status()
 
         # Convert to Thing objects
