@@ -145,9 +145,9 @@ class OpenHABClient:
 
         params = {}
         if include_members:
-            params["members"] = "true"
+            params["recursive"] = "true"
         else:
-            params["members"] = "false"
+            params["recursive"] = "false"
 
         try:
             response = self.session.get(f"{self.base_url}/rest/items/{item_name}", params=params)
