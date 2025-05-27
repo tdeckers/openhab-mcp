@@ -26,6 +26,7 @@ from models import (
     Item,
     ItemDetails,
     Tag,
+    Thing,
     ThingDetails,
     PaginatedThings,
     PaginatedItems,
