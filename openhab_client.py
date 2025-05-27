@@ -733,6 +733,10 @@ class OpenHABClient:
         total_pages = (
             (total_elements + page_size - 1) // page_size if page_size > 0 else 1
         )
+        print("Page: " + str(page))
+        print("Page size: " + str(page_size))
+        print("Total elements: " + str(total_elements))
+        print("Total pages: " + str(total_pages))
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
 

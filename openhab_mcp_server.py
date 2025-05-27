@@ -380,9 +380,14 @@ def delete_tag(tag_uid: str) -> bool:
 
 
 @mcp.tool()
-def list_links(item_name: Optional[str] = None) -> PaginatedLinks:
-    """List all openHAB item to thing links, optionally filtered by item name"""
-    links = openhab_client.list_links(item_name)
+def list_links(
+    page: int = 1,
+    page_size: int = 15,
+    sort_by: str = "UID",
+    sort_order: str = "asc",
+    item_name: Optional[str] = None) -> PaginatedLinks:
+    """List all openHAB item to thing links, optionally filtered by item name with pagination"""
+    links = openhab_client.list_links(page, page_size, sort_order, item_name)
     return links
 
 
