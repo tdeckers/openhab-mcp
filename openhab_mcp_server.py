@@ -25,6 +25,8 @@ from mcp.types import JSONRPCError, INVALID_REQUEST
 from models import (
     Item,
     ItemDetails,
+    Link,
+    PaginatedLinks,
     Tag,
     Thing,
     ThingDetails,
@@ -37,27 +39,7 @@ from models import (
 )
 from openhab_client import OpenHABClient
 
-from mcp.server.session import ServerSession
-
-####################################################################################
-# Temporary monkeypatch which avoids crashing when a POST message is received
-# before a connection has been initialized, e.g: after a deployment.
-# pylint: disable-next=protected-access
-#old__received_request = ServerSession._received_request
-
-
-#async def _received_request(self, *args, **kwargs):
-#    try:
-#        return await old__received_request(self, *args, **kwargs)
-#    except RuntimeError:
-#        pass
-
-
-# pylint: disable-next=protected-access
-#ServerSession._received_request = _received_request
-####################################################################################
-
-#mcp = FastMCP("OpenHAB MCP Server")
+# mcp = FastMCP("OpenHAB MCP Server")
 mcp = FastMCP("OpenHAB MCP Server", stateless_http=True)
 
 # Load environment variables from .env file
@@ -218,11 +200,13 @@ def get_thing_details(thing_uid: str) -> Optional[ThingDetails]:
     thing_details = openhab_client.get_thing_details(thing_uid)
     return thing_details
 
+
 @mcp.tool()
 def create_thing(thing: Thing) -> Optional[ThingDetails]:
     """Create a new openHAB thing"""
     created_thing = openhab_client.create_thing(thing)
     return created_thing
+
 
 @mcp.tool()
 def update_thing(thing_uid: str, thing: ThingDetails) -> Optional[ThingDetails]:
@@ -230,10 +214,12 @@ def update_thing(thing_uid: str, thing: ThingDetails) -> Optional[ThingDetails]:
     updated_thing = openhab_client.update_thing(thing_uid, thing)
     return updated_thing
 
+
 @mcp.tool()
 def delete_thing(thing_uid: str) -> bool:
     """Delete an openHAB thing"""
     return openhab_client.delete_thing(thing_uid)
+
 
 @mcp.tool()
 def list_rules(
@@ -379,6 +365,40 @@ def create_tag(tag: Tag) -> Tag:
 def delete_tag(tag_uid: str) -> bool:
     """Delete an openHAB tag"""
     return openhab_client.delete_tag(tag_uid)
+
+
+@mcp.tool()
+def list_links(item_name: Optional[str] = None) -> PaginatedLinks:
+    """List all openHAB item to thing links, optionally filtered by item name"""
+    links = openhab_client.list_links(item_name)
+    return links
+
+
+@mcp.tool()
+def get_link(item_name: str, channel_uid: str) -> Optional[Link]:
+    """Get a specific openHAB item to thing link by item name and channel UID"""
+    link = openhab_client.get_link(item_name, channel_uid)
+    return link
+
+
+@mcp.tool()
+def create_link(link: Link) -> Link:
+    """Create a new openHAB item to thing link"""
+    created_link = openhab_client.create_link(link)
+    return created_link
+
+
+@mcp.tool()
+def delete_link(item_name: str, channel_uid: str) -> bool:
+    """Delete an openHAB item to thing link"""
+    return openhab_client.delete_link(item_name, channel_uid)
+
+
+@mcp.tool()
+def update_link(link: Link) -> Link:
+    """Update an existing openHAB item to thing link"""
+    updated_link = openhab_client.update_link(link)
+    return updated_link
 
 
 if __name__ == "__main__":

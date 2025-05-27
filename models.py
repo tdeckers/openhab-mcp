@@ -82,6 +82,12 @@ class Tag(BaseModel):
     synonyms: List[str] = []
     editable: bool = True
 
+class Link(BaseModel):
+    item_name: str
+    channel_uid: str
+    configuration: Dict[str, Any] = Field(default_factory=dict)
+    editable: bool = True
+
 class PaginationInfo(BaseModel):
     total_elements: int
     page: int
@@ -100,4 +106,8 @@ class PaginatedItems(BaseModel):
 
 class PaginatedRules(BaseModel):
     rules: List[Rule]
+    pagination: PaginationInfo
+
+class PaginatedLinks(BaseModel):
+    links: List[Link]
     pagination: PaginationInfo

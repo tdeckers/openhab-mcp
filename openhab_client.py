@@ -5,11 +5,13 @@ from typing import Dict, List, Optional, Any
 from models import (
     Item,
     ItemDetails,
+    Link,
     Thing,
     ThingDetails,
     Tag,
     PaginatedThings,
     PaginatedItems,
+    PaginatedLinks,
     PaginationInfo,
     PaginatedRules,
     Rule,
@@ -155,7 +157,7 @@ class OpenHABClient:
         if not item.name:
             raise ValueError("Item must have a name")
 
-        payload = item.dict()
+        payload = item.model_dump()
 
         response = self.session.put(
             f"{self.base_url}/rest/items/{item.name}", json=payload
@@ -696,4 +698,117 @@ class OpenHABClient:
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
+            raise
+
+    def list_links(
+        self,
+        page: int = 1,
+        page_size: int = 15,
+        sort_order: str = "asc",
+    ) -> PaginatedLinks:
+        """
+        List links with pagination
+
+        Args:
+            page: 1-based page number
+            page_size: Number of items per page
+            sort_order: Sort order ("asc" or "desc")
+
+        Returns:
+            PaginatedLinks object containing the paginated results and pagination info
+        """
+        # Get all links
+        response = self.session.get(f"{self.base_url}/rest/links")
+        response.raise_for_status()
+
+        # Convert to Link objects
+        links = [Link(**link) for link in response.json()]
+
+        # Sort the links
+        reverse_sort = sort_order.lower() == "desc"
+        links.sort(key=lambda x: str(x.itemName + x.channelUID).lower(), reverse=reverse_sort)
+
+        # Calculate pagination
+        total_elements = len(links)
+        total_pages = (
+            (total_elements + page_size - 1) // page_size if page_size > 0 else 1
+        )
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+
+        # Get the page of links
+        paginated_links = links[start_idx:end_idx]
+
+        return PaginatedLinks(
+            links=paginated_links,
+            pagination=PaginationInfo(
+                total_elements=total_elements,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+                has_next=end_idx < total_elements,
+                has_previous=start_idx > 0,
+            ),
+        )
+    
+    def get_link(self, item_name: str, channel_uid: str) -> Optional[Link]:
+        """Get a specific link by item name and channel UID"""
+        if item_name is None or channel_uid is None:
+            return None
+
+        try:
+            response = self.session.get(f"{self.base_url}/rest/links/{item_name}/{channel_uid}")
+            response.raise_for_status()
+
+            return Link(**response.json())
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
+
+    def create_link(self, link: Link) -> Link:
+        """Create a new link"""
+        if not link.itemName:
+            raise ValueError("Link must have an item name")
+
+        if not link.channelUID:
+            raise ValueError("Link must have a channel UID")
+
+        payload = link.model_dump()
+
+        response = self.session.put(f"{self.base_url}/rest/links/{link.itemName}/{link.channelUID}", json=payload)
+        response.raise_for_status()
+
+        # Get the created link
+        return self.get_link(link.itemName, link.channelUID)
+
+    def update_link(self, link: Link) -> Link:
+        """Update an existing link"""
+        if not link.itemName:
+            raise ValueError("Link must have an item name")
+
+        if not link.channelUID:
+            raise ValueError("Link must have a channel UID")
+
+        existing_link = self.get_link(link.itemName, link.channelUID)
+        if not existing_link:
+            raise ValueError(f"Link with item name '{link.itemName}' and channel UID '{link.channelUID}' not found")
+
+        created_link = self.create_link(link)
+
+        # Get the updated link
+        return created_link
+        
+    def delete_link(self, item_name: str, channel_uid: str) -> bool:
+        """Delete an existing link"""
+        if item_name is None or channel_uid is None:
+            return False
+
+        try:
+            response = self.session.delete(f"{self.base_url}/rest/links/{item_name}/{channel_uid}")
+            response.raise_for_status()
+            return True
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                return False
             raise
