@@ -1,11 +1,12 @@
 from typing import Dict, List, Optional, Any, NamedTuple
-from typing_extensions import override
+from typing_extensions import override, TypedDict
 from pydantic import BaseModel, Field, ConfigDict
 
 class CustomBaseModel(BaseModel):
 
     model_config = ConfigDict(extra='allow')
 
+    # Never dump extra fields. We need them though to teach the LLM not to invent fields that don't exist
     @override
     def model_dump(self, **kwargs):
         kwargs["exclude"] = kwargs.get("exclude", []) + list(self.model_extra.keys())
@@ -13,17 +14,40 @@ class CustomBaseModel(BaseModel):
 
 
 class Item(CustomBaseModel):
-    model_config = ConfigDict(extra='allow')
     type: str
     name: str
     state: Optional[str] = None
+    transformedState: Optional[str] = None
     label: Optional[str] = None
     category: Optional[str] = None
     tags: List[str] = []
     groupNames: List[str] = []
 
+class CommandOptions(TypedDict):
+    command: str
+    label: str
+
+class CommandDescription(CustomBaseModel):
+    commandOptions: List[CommandOptions]
+
+class StateOptions(TypedDict):
+    value: str
+    label: str
+
+class StateDescription(CustomBaseModel):
+    minimum: Optional[int] = None
+    maximum: Optional[int] = None
+    step: Optional[int] = None
+    pattern: Optional[str] = None
+    readOnly: Optional[bool] = None
+    options: Optional[List[StateOptions]] = None
+
 class ItemDetails(Item):
     members: List[Item] = []
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    commandDescription: Optional[CommandDescription] = None
+    stateDescription: Optional[StateDescription] = None
+    unitSymbol: Optional[str] = None
 
 class DataPoint(NamedTuple):
     time: int
