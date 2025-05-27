@@ -43,7 +43,7 @@ class StateDescription(CustomBaseModel):
     options: Optional[List[StateOptions]] = None
 
 class ItemMetadata(CustomBaseModel):
-    value: str
+    value: str = " "
     config: Dict[str, Any] = Field(default_factory=dict)
 
 class ItemDetails(Item):

@@ -195,9 +195,9 @@ class OpenHABClient:
 
         return self.get_item_details(item_name)
     
-    def update_item_metadata(self, item_name: str, namespace: str, metadata: Dict[str, ItemMetadata]) -> ItemDetails:
+    def update_item_metadata(self, item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
         """Update metadata for a specific item"""
-        payload = metadata
+        payload = metadata.model_dump()
 
         namespaces = self.__get_item_metadata_namespaces(item_name)
         if namespace not in namespaces:
