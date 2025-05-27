@@ -339,7 +339,7 @@ class OpenHABClient:
         payload = thing.model_dump()
 
         response = self.session.post(
-            f"{self.base_url}/rest/things/{thing.UID}", json=payload
+            f"{self.base_url}/rest/things", json=payload
         )
         response.raise_for_status()
 
