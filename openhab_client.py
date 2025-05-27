@@ -705,6 +705,7 @@ class OpenHABClient:
         page: int = 1,
         page_size: int = 15,
         sort_order: str = "asc",
+        item_name: Optional[str] = None,
     ) -> PaginatedLinks:
         """
         List links with pagination
@@ -713,12 +714,18 @@ class OpenHABClient:
             page: 1-based page number
             page_size: Number of items per page
             sort_order: Sort order ("asc" or "desc")
+            item_name: If provided, only return links that for the given item name
 
         Returns:
             PaginatedLinks object containing the paginated results and pagination info
         """
+
+        params = {}
+        if item_name:
+            params["itemName"] = item_name
+
         # Get all links
-        response = self.session.get(f"{self.base_url}/rest/links")
+        response = self.session.get(f"{self.base_url}/rest/links", params=params)
         response.raise_for_status()
 
         # Convert to Link objects
