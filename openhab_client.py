@@ -636,7 +636,7 @@ class OpenHABClient:
             raise ValueError("Rule UID cannot be empty")
 
         # Check if rule exists
-        if not self.get_rule(rule_uid):
+        if not self.get_rule_details(rule_uid):
             raise ValueError(f"Rule with UID '{rule_uid}' not found")
 
         # Send request to run the rule
