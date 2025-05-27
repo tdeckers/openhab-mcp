@@ -329,7 +329,7 @@ class OpenHABClient:
                 return None
             raise
     
-    def create_thing(self, thing: ThingDetails) -> ThingDetails:
+    def create_thing(self, thing: Thing) -> ThingDetails:
         """Create a new thing"""
         if not thing.UID:
             raise ValueError("Thing must have a UID")
@@ -337,6 +337,10 @@ class OpenHABClient:
             raise ValueError("Thing must have a thingTypeUID")
 
         payload = thing.model_dump()
+        try:
+            payload.update({"ID": thing.UID.split(':')[-1]})
+        except Exception as e:
+            raise ValueError("Thing UID must be in format 'thingType:thingID' or 'thingType:bridgeID:thingID'")
 
         response = self.session.post(
             f"{self.base_url}/rest/things", json=payload

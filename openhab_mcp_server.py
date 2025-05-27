@@ -218,7 +218,7 @@ def get_thing_details(thing_uid: str) -> Optional[ThingDetails]:
     return thing_details
 
 @mcp.tool()
-def create_thing(thing: ThingDetails) -> Optional[ThingDetails]:
+def create_thing(thing: Thing) -> Optional[ThingDetails]:
     """Create a new openHAB thing"""
     created_thing = openhab_client.create_thing(thing)
     return created_thing
