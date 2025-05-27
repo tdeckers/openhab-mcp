@@ -383,7 +383,6 @@ def delete_tag(tag_uid: str) -> bool:
 def list_links(
     page: int = 1,
     page_size: int = 15,
-    sort_by: str = "UID",
     sort_order: str = "asc",
     item_name: Optional[str] = None) -> PaginatedLinks:
     """List all openHAB item to thing links, optionally filtered by item name with pagination"""
