@@ -174,19 +174,17 @@ class OpenHABClient:
         # Get the created item
         return self.get_item_details(item.name)
     
-    def __get_item_metadata_namespaces(self, item_name: str) -> List[str]:
-        """Get the metadata namespaces for a specific item"""
-        response = self.session.get(f"{self.base_url}/rest/items/{item_name}/metadata/namespaces")
-        response.raise_for_status()
-        return response.json()
-    
-    def create_item_metadata(self, item_name: str, namespace: str, metadata: Dict[str, ItemMetadata]) -> ItemDetails:
+    def create_item_metadata(self, item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
         """Create metadata for a specific item"""
-        payload = metadata
 
-        namespaces = self.__get_item_metadata_namespaces(item_name)
-        if namespace in namespaces:
+        item = self.get_item_details(item_name)
+        if namespace in item.metadata:
             raise ValueError(f"Namespace '{namespace}' already exists for item '{item_name}'")
+
+        payload = {
+            "value": metadata.value,
+            "config": metadata.config,
+        }
 
         response = self.session.put(
             f"{self.base_url}/rest/items/{item_name}/metadata/{namespace}", json=payload
@@ -197,11 +195,15 @@ class OpenHABClient:
     
     def update_item_metadata(self, item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
         """Update metadata for a specific item"""
-        payload = metadata.model_dump()
 
-        namespaces = self.__get_item_metadata_namespaces(item_name)
-        if namespace not in namespaces:
+        item = self.get_item_details(item_name)
+        if namespace not in item.metadata:
             raise ValueError(f"Namespace '{namespace}' does not exist for item '{item_name}'")
+
+        payload = {
+            "value": metadata.value,
+            "config": metadata.config,
+        }
 
         response = self.session.put(
             f"{self.base_url}/rest/items/{item_name}/metadata/{namespace}", json=payload

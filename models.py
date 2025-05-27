@@ -44,7 +44,7 @@ class StateDescription(CustomBaseModel):
 
 class ItemMetadata(CustomBaseModel):
     value: str = " "
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: Optional[Dict[str, Any]] = None
 
 class ItemDetails(Item):
     members: List[Item] = []

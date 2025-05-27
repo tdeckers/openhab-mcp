@@ -126,7 +126,7 @@ def create_item_metadata(item_name: str, namespace: str, metadata: Dict[str, Ite
     return openhab_client.create_item_metadata(item_name, namespace, metadata)
 
 @mcp.tool()
-def update_item_metadata(item_name: str, namespace: str, metadata: Dict[str, ItemMetadata]) -> ItemDetails:
+def update_item_metadata(item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
     """Update metadata for a specific openHAB item"""
     return openhab_client.update_item_metadata(item_name, namespace, metadata)
 
