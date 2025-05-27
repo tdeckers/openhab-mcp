@@ -298,7 +298,7 @@ def update_rule_script_action(
 
 
 @mcp.tool()
-def create_rule(rule: Rule) -> RuleDetails:
+def create_rule(rule: RuleDetails) -> RuleDetails:
     """Create a new openHAB rule"""
     created_rule = openhab_client.create_rule(rule)
     return created_rule
