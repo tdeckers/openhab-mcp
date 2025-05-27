@@ -138,13 +138,19 @@ class OpenHABClient:
 
         return locations
 
-    def get_item_details(self, item_name: str) -> Optional[ItemDetails]:
+    def get_item_details(self, item_name: str, include_members: bool = False) -> Optional[ItemDetails]:
         """Get a specific item by name"""
         if item_name is None:
             return None
 
+        params = {}
+        if include_members:
+            params["members"] = "true"
+        else:
+            params["members"] = "false"
+
         try:
-            response = self.session.get(f"{self.base_url}/rest/items/{item_name}")
+            response = self.session.get(f"{self.base_url}/rest/items/{item_name}", params=params)
             response.raise_for_status()
             return ItemDetails(**response.json())
         except requests.exceptions.HTTPError as e:

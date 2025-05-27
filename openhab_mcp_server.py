@@ -114,9 +114,9 @@ def list_items(
 
 
 @mcp.tool()
-def get_item_details(item_name: str) -> Optional[ItemDetails]:
-    """Get a specific openHAB item with more details including membership for group items by name"""
-    item = openhab_client.get_item_details(item_name)
+def get_item_details(item_name: str, include_members: bool = False) -> Optional[ItemDetails]:
+    """Get a specific openHAB item with more details. Group members are included if include_members is True"""
+    item = openhab_client.get_item_details(item_name, include_members)
     return item
 
 
