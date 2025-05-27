@@ -8,7 +8,7 @@ class CustomBaseModel(BaseModel):
 
     @override
     def model_dump(self, **kwargs):
-        kwargs["exclude"] = list(get(kwargs["exclude"], []) + self.model_extra.keys())
+        kwargs["exclude"] = list(kwargs.get("exclude", []) + self.model_extra.keys())
         return super().model_dump(**kwargs)
 
 
