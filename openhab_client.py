@@ -156,10 +156,6 @@ class OpenHABClient:
         """Create a new item"""
         if not item.name:
             raise ValueError("Item must have a name")
-        
-        extra_fields = item.model_dump().keys() - ItemDetails.model_fields.keys()
-        if len(extra_fields) > 0:
-            raise ValueError(f"Unsupported fields provided: {extra_fields}")
 
         payload = item.model_dump()
 
