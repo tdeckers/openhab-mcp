@@ -156,6 +156,10 @@ class OpenHABClient:
         """Create a new item"""
         if not item.name:
             raise ValueError("Item must have a name")
+        
+        extra_fields = item.model_dump().keys() - ItemDetails.model_fields.keys()
+        if extra_fields:
+            raise ValueError(f"Unsupported fields provided: {extra_fields}")
 
         payload = item.model_dump()
 
@@ -676,7 +680,7 @@ class OpenHABClient:
         if not tag.uid:
             raise ValueError("Tag must have a uid")
 
-        payload = tag.dict()
+        payload = tag.model_dump()
 
         response = self.session.post(f"{self.base_url}/rest/tags", json=payload)
         response.raise_for_status()
