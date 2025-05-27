@@ -83,8 +83,8 @@ class Tag(BaseModel):
     editable: bool = True
 
 class Link(BaseModel):
-    item_name: str
-    channel_uid: str
+    itemName: str
+    channelUID: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
     editable: bool = True
 
