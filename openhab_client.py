@@ -328,6 +328,58 @@ class OpenHABClient:
             if e.response.status_code == 404:
                 return None
             raise
+    
+    def create_thing(self, thing: ThingDetails) -> ThingDetails:
+        """Create a new thing"""
+        if not thing.UID:
+            raise ValueError("Thing must have a UID")
+        if not thing.thingTypeUID:
+            raise ValueError("Thing must have a thingTypeUID")
+
+        payload = thing.model_dump()
+
+        response = self.session.post(
+            f"{self.base_url}/rest/things/{thing.UID}", json=payload
+        )
+        response.raise_for_status()
+
+        # Get the created thing
+        return self.get_thing_details(thing.UID)
+    
+    def update_thing(self, thing_uid: str, thing: ThingDetails) -> ThingDetails:
+        """Update an existing thing"""
+        # Get current thing to merge with updates
+        current_thing = self.get_thing_details(thing_uid)
+        if not current_thing:
+            raise ValueError(f"Thing with UID '{thing_uid}' not found")
+
+        # Prepare update payload
+        payload = {
+            "thingTypeUID": thing.thingTypeUID,
+            "UID": thing_uid,
+            "label": thing.label or current_thing.label,
+            "configuration": thing.configuration or current_thing.configuration,
+            "properties": thing.properties or current_thing.properties,
+            "channels": thing.channels or current_thing.channels,
+        }
+
+        response = self.session.put(
+            f"{self.base_url}/rest/things/{thing_uid}", json=payload
+        )
+        response.raise_for_status()
+
+        # Get the updated thing
+        return self.get_thing_details(thing_uid)
+
+    def delete_thing(self, thing_uid: str) -> bool:
+        """Delete a thing"""
+        response = self.session.delete(f"{self.base_url}/rest/things/{thing_uid}")
+
+        if response.status_code == 404:
+            raise ValueError(f"Thing with UID '{thing_uid}' not found")
+
+        response.raise_for_status()
+        return True
 
     def list_rules(
         self,
