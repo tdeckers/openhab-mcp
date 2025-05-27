@@ -26,6 +26,7 @@ from mcp.types import JSONRPCError, INVALID_REQUEST
 from models import (
     Item,
     ItemDetails,
+    ItemMetadata,
     Link,
     PaginatedLinks,
     Tag,
@@ -119,6 +120,15 @@ def get_item_details(item_name: str, include_members: bool = False) -> Optional[
     item = openhab_client.get_item_details(item_name, include_members)
     return item
 
+@mcp.tool()
+def create_item_metadata(item_name: str, namespace: str, metadata: Dict[str, ItemMetadata]) -> ItemDetails:
+    """Create new metadata for a specific openHAB item"""
+    return openhab_client.create_item_metadata(item_name, namespace, metadata)
+
+@mcp.tool()
+def update_item_metadata(item_name: str, namespace: str, metadata: Dict[str, ItemMetadata]) -> ItemDetails:
+    """Update metadata for a specific openHAB item"""
+    return openhab_client.update_item_metadata(item_name, namespace, metadata)
 
 @mcp.tool()
 def create_item(item: ItemDetails) -> ItemDetails:

@@ -42,9 +42,13 @@ class StateDescription(CustomBaseModel):
     readOnly: Optional[bool] = None
     options: Optional[List[StateOptions]] = None
 
+class ItemMetadata(CustomBaseModel):
+    value: str
+    config: Dict[str, Any] = Field(default_factory=dict)
+
 class ItemDetails(Item):
     members: List[Item] = []
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Optional[Dict[str, ItemMetadata]] = None
     commandDescription: Optional[CommandDescription] = None
     stateDescription: Optional[StateDescription] = None
     unitSymbol: Optional[str] = None
