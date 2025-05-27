@@ -12,6 +12,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 # Configure logging to suppress INFO messages
 logging.basicConfig(level=logging.DEBUG)
@@ -79,6 +80,11 @@ openhab_client = OpenHABClient(
 #     return items
 
 
+def __validate_model(model: BaseModel):
+    if len(model.model_extra) > 0:
+        raise ValueError("Model must not have any extra fields")
+
+
 @mcp.tool()
 def list_items(
     page: int = 1,
@@ -117,6 +123,7 @@ def get_item_details(item_name: str) -> Optional[ItemDetails]:
 @mcp.tool()
 def create_item(item: ItemDetails) -> ItemDetails:
     """Create a new openHAB item"""
+    __validate_model(item)
     created_item = openhab_client.create_item(item)
     return created_item
 
@@ -124,6 +131,7 @@ def create_item(item: ItemDetails) -> ItemDetails:
 @mcp.tool()
 def update_item(item_name: str, item: ItemDetails) -> ItemDetails:
     """Update an existing openHAB item"""
+    __validate_model(item)
     updated_item = openhab_client.update_item(item_name, item)
     return updated_item
 
@@ -204,6 +212,7 @@ def get_thing_details(thing_uid: str) -> Optional[ThingDetails]:
 @mcp.tool()
 def create_thing(thing: Thing) -> Optional[ThingDetails]:
     """Create a new openHAB thing"""
+    __validate_model(thing)
     created_thing = openhab_client.create_thing(thing)
     return created_thing
 
@@ -211,6 +220,7 @@ def create_thing(thing: Thing) -> Optional[ThingDetails]:
 @mcp.tool()
 def update_thing(thing_uid: str, thing: ThingDetails) -> Optional[ThingDetails]:
     """Update an existing openHAB thing"""
+    __validate_model(thing)
     updated_thing = openhab_client.update_thing(thing_uid, thing)
     return updated_thing
 
@@ -300,6 +310,7 @@ def update_rule_script_action(
 @mcp.tool()
 def create_rule(rule: RuleDetails) -> RuleDetails:
     """Create a new openHAB rule"""
+    __validate_model(rule)
     created_rule = openhab_client.create_rule(rule)
     return created_rule
 
@@ -357,6 +368,7 @@ def create_tag(tag: Tag) -> Tag:
     Tags can support multiple levels of hierarchy with the pattern 'parent_child'.
     When adding tags to items only the tag name and not the uid is assigned.
     """
+    __validate_model(tag)
     created_tag = openhab_client.create_tag(tag)
     return created_tag
 
@@ -384,6 +396,7 @@ def get_link(item_name: str, channel_uid: str) -> Optional[Link]:
 @mcp.tool()
 def create_link(link: Link) -> Link:
     """Create a new openHAB item to thing link"""
+    __validate_model(link)
     created_link = openhab_client.create_link(link)
     return created_link
 
@@ -397,6 +410,7 @@ def delete_link(item_name: str, channel_uid: str) -> bool:
 @mcp.tool()
 def update_link(link: Link) -> Link:
     """Update an existing openHAB item to thing link"""
+    __validate_model(link)
     updated_link = openhab_client.update_link(link)
     return updated_link
 

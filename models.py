@@ -1,7 +1,19 @@
 from typing import Dict, List, Optional, Any, NamedTuple
-from pydantic import BaseModel, Field
+from typing_extensions import override
+from pydantic import BaseModel, Field, ConfigDict
 
-class Item(BaseModel):
+class CustomBaseModel(BaseModel):
+
+    model_config = ConfigDict(extra='allow')
+
+    @override
+    def model_dump(self, **kwargs):
+        kwargs["exclude"] = list(get(kwargs["exclude"], []) + self.model_extra.keys())
+        return super().model_dump(**kwargs)
+
+
+class Item(CustomBaseModel):
+    model_config = ConfigDict(extra='allow')
     type: str
     name: str
     state: Optional[str] = None
@@ -17,16 +29,16 @@ class DataPoint(NamedTuple):
     time: int
     state: str
 
-class ItemPersistence(BaseModel):
+class ItemPersistence(CustomBaseModel):
     name: str
     data: List[DataPoint] = []
 
-class ThingStatusInfo(BaseModel):
+class ThingStatusInfo(CustomBaseModel):
     status: str
     statusDetail: str = "NONE"
     description: Optional[str] = None
 
-class Thing(BaseModel):
+class Thing(CustomBaseModel):
     thingTypeUID: str
     UID: str
     label: Optional[str] = None
@@ -38,27 +50,27 @@ class Thing(BaseModel):
 class ThingDetails(Thing):
     channels: List[Dict[str, Any]] = Field(default_factory=list)
 
-class RuleStatus(BaseModel):
+class RuleStatus(CustomBaseModel):
     status: str
     statusDetail: str = "NONE"
 
-class RuleAction(BaseModel):
+class RuleAction(CustomBaseModel):
     id: str
     type: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
     inputs: Dict[str, Any] = Field(default_factory=dict)
 
-class RuleTrigger(BaseModel):
+class RuleTrigger(CustomBaseModel):
     id: str
     type: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
 
-class RuleCondition(BaseModel):
+class RuleCondition(CustomBaseModel):
     id: str
     type: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
 
-class Rule(BaseModel):
+class Rule(CustomBaseModel):
     uid: str
     name: str
     status: Optional[RuleStatus] = None
@@ -74,7 +86,7 @@ class RuleDetails(Rule):
     configuration: Dict[str, Any] = Field(default_factory=dict)
     configDescriptions: List[Dict[str, Any]] = Field(default_factory=list)
 
-class Tag(BaseModel):
+class Tag(CustomBaseModel):
     uid: str
     name: str
     label: Optional[str] = None
@@ -82,13 +94,13 @@ class Tag(BaseModel):
     synonyms: List[str] = []
     editable: bool = True
 
-class Link(BaseModel):
+class Link(CustomBaseModel):
     itemName: str
     channelUID: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
     editable: bool = True
 
-class PaginationInfo(BaseModel):
+class PaginationInfo(CustomBaseModel):
     total_elements: int
     page: int
     page_size: int
@@ -96,18 +108,18 @@ class PaginationInfo(BaseModel):
     has_next: bool
     has_previous: bool
 
-class PaginatedThings(BaseModel):
+class PaginatedThings(CustomBaseModel):
     things: List[Thing]
     pagination: PaginationInfo
 
-class PaginatedItems(BaseModel):
+class PaginatedItems(CustomBaseModel):
     items: List[Item]
     pagination: PaginationInfo
 
-class PaginatedRules(BaseModel):
+class PaginatedRules(CustomBaseModel):
     rules: List[Rule]
     pagination: PaginationInfo
 
-class PaginatedLinks(BaseModel):
+class PaginatedLinks(CustomBaseModel):
     links: List[Link]
     pagination: PaginationInfo
