@@ -217,6 +217,22 @@ def get_thing_details(thing_uid: str) -> Optional[ThingDetails]:
     thing_details = openhab_client.get_thing_details(thing_uid)
     return thing_details
 
+@mcp.tool()
+def create_thing(thing: ThingDetails) -> Optional[ThingDetails]:
+    """Create a new openHAB thing"""
+    created_thing = openhab_client.create_thing(thing)
+    return created_thing
+
+@mcp.tool()
+def update_thing(thing_uid: str, thing: ThingDetails) -> Optional[ThingDetails]:
+    """Update an existing openHAB thing"""
+    updated_thing = openhab_client.update_thing(thing_uid, thing)
+    return updated_thing
+
+@mcp.tool()
+def delete_thing(thing_uid: str) -> bool:
+    """Delete an openHAB thing"""
+    return openhab_client.delete_thing(thing_uid)
 
 @mcp.tool()
 def list_rules(
