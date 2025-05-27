@@ -82,7 +82,7 @@ openhab_client = OpenHABClient(
 
 def __validate_model(model: BaseModel):
     if len(model.model_extra) > 0:
-        raise ValueError("Model must not have any extra fields")
+        raise ValueError("Unsupported fields: {', '.join(model.model_extra.keys())}")
 
 
 @mcp.tool()
