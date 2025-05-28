@@ -121,13 +121,15 @@ def get_item_details(item_name: str, include_members: bool = False) -> Optional[
     return item
 
 @mcp.tool()
-def create_item_metadata(item_name: str, namespace: str, metadata: Dict[str, ItemMetadata]) -> ItemDetails:
+def create_item_metadata(item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
     """Create new metadata for a specific openHAB item"""
+    __validate_model(metadata)
     return openhab_client.create_item_metadata(item_name, namespace, metadata)
 
 @mcp.tool()
 def update_item_metadata(item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
     """Update metadata for a specific openHAB item"""
+    __validate_model(metadata)
     return openhab_client.update_item_metadata(item_name, namespace, metadata)
 
 @mcp.tool()
