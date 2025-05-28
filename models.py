@@ -1,6 +1,9 @@
 from typing import Dict, List, Optional, Any, NamedTuple
 from typing_extensions import override, TypedDict
 from pydantic import BaseModel, Field, ConfigDict
+import random
+import string
+
 
 class CustomBaseModel(BaseModel):
 
@@ -68,7 +71,7 @@ class ThingStatusInfo(CustomBaseModel):
 
 class Thing(CustomBaseModel):
     thingTypeUID: str
-    UID: str
+    UID: Optional[str] = None
     label: Optional[str] = None
     bridgeUID: Optional[str] = None
     statusInfo: Optional[ThingStatusInfo] = None

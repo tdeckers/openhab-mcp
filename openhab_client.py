@@ -1,5 +1,7 @@
 import re
 import requests
+import random
+import string
 from typing import Dict, List, Optional, Any
 
 from models import (
@@ -21,6 +23,13 @@ from models import (
 )
 
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+
+
+def generate_uid() -> str:
+    return "".join(
+        random.SystemRandom().choice(string.ascii_lowercase + string.digits)
+        for _ in range(10)
+    )
 
 
 class OpenHABClient:
@@ -135,11 +144,15 @@ class OpenHABClient:
             PaginatedItems object containing the paginated results and pagination info
         """
         # Get all locations
-        locations = self.list_items(page, page_size, sort_by, sort_order, filter_tag="Location")
+        locations = self.list_items(
+            page, page_size, sort_by, sort_order, filter_tag="Location"
+        )
 
         return locations
 
-    def get_item_details(self, item_name: str, include_members: bool = False) -> Optional[ItemDetails]:
+    def get_item_details(
+        self, item_name: str, include_members: bool = False
+    ) -> Optional[ItemDetails]:
         """Get a specific item by name"""
         if item_name is None:
             return None
@@ -151,7 +164,9 @@ class OpenHABClient:
             params["recursive"] = "false"
 
         try:
-            response = self.session.get(f"{self.base_url}/rest/items/{item_name}", params=params)
+            response = self.session.get(
+                f"{self.base_url}/rest/items/{item_name}", params=params
+            )
             response.raise_for_status()
             return ItemDetails(**response.json())
         except requests.exceptions.HTTPError as e:
@@ -173,13 +188,17 @@ class OpenHABClient:
 
         # Get the created item
         return self.get_item_details(item.name)
-    
-    def create_item_metadata(self, item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
+
+    def create_item_metadata(
+        self, item_name: str, namespace: str, metadata: ItemMetadata
+    ) -> ItemDetails:
         """Create metadata for a specific item"""
 
         item = self.get_item_details(item_name)
         if namespace in item.metadata:
-            raise ValueError(f"Namespace '{namespace}' already exists for item '{item_name}'")
+            raise ValueError(
+                f"Namespace '{namespace}' already exists for item '{item_name}'"
+            )
 
         payload = {
             "value": metadata.value,
@@ -192,13 +211,17 @@ class OpenHABClient:
         response.raise_for_status()
 
         return self.get_item_details(item_name)
-    
-    def update_item_metadata(self, item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
+
+    def update_item_metadata(
+        self, item_name: str, namespace: str, metadata: ItemMetadata
+    ) -> ItemDetails:
         """Update metadata for a specific item"""
 
         item = self.get_item_details(item_name)
         if namespace not in item.metadata:
-            raise ValueError(f"Namespace '{namespace}' does not exist for item '{item_name}'")
+            raise ValueError(
+                f"Namespace '{namespace}' does not exist for item '{item_name}'"
+            )
 
         payload = {
             "value": metadata.value,
@@ -218,8 +241,13 @@ class OpenHABClient:
         current_item = self.get_item_details(item_name)
         if not current_item:
             raise ValueError(f"Item with name '{item_name}' not found")
-        if item.transformedState and item.transformedState != current_item.transformedState:
-            raise ValueError(f"Cannot update transformedState of item '{item_name}'. Update state instead.")
+        if (
+            item.transformedState
+            and item.transformedState != current_item.transformedState
+        ):
+            raise ValueError(
+                f"Cannot update transformedState of item '{item_name}'. Update state instead."
+            )
 
         # Prepare update payload
         payload = {
@@ -232,7 +260,8 @@ class OpenHABClient:
             "groupNames": item.groupNames or current_item.groupNames,
             "members": item.members or current_item.members,
             "metadata": item.metadata or current_item.metadata,
-            "commandDescription": item.commandDescription or current_item.commandDescription,
+            "commandDescription": item.commandDescription
+            or current_item.commandDescription,
             "stateDescription": item.stateDescription or current_item.stateDescription,
             "unitSymbol": item.unitSymbol or current_item.unitSymbol,
         }
@@ -382,28 +411,38 @@ class OpenHABClient:
             if e.response.status_code == 404:
                 return None
             raise
-    
+
     def create_thing(self, thing: Thing) -> ThingDetails:
         """Create a new thing"""
-        if not thing.UID:
-            raise ValueError("Thing must have a UID")
+
         if not thing.thingTypeUID:
             raise ValueError("Thing must have a thingTypeUID")
 
+        if not thing.UID:
+            thing.UID = (
+                thing.thingTypeUID
+                + ":"
+                + (
+                    (thing.bridgeUID + ":" + generate_uid())
+                    if thing.bridgeUID
+                    else generate_uid()
+                )
+            )
+
         payload = thing.model_dump()
         try:
-            payload.update({"ID": thing.UID.split(':')[-1]})
+            payload.update({"ID": thing.UID.split(":")[-1]})
         except Exception as e:
-            raise ValueError("Thing UID must be in format 'thingType:thingID' or 'thingType:bridgeID:thingID'")
+            raise ValueError(
+                "Thing UID must be in format 'thing_type_uid:thing_uid' or 'thing_type_uid:bridge_uid:thing_uid'"
+            )
 
-        response = self.session.post(
-            f"{self.base_url}/rest/things", json=payload
-        )
-        response.raise_for_status()
+        #response = self.session.post(f"{self.base_url}/rest/things", json=payload)
+        #response.raise_for_status()
 
         # Get the created thing
         return self.get_thing_details(thing.UID)
-    
+
     def update_thing(self, thing_uid: str, thing: ThingDetails) -> ThingDetails:
         """Update an existing thing"""
         # Get current thing to merge with updates
@@ -582,7 +621,7 @@ class OpenHABClient:
     def create_rule(self, rule: RuleDetails) -> RuleDetails:
         """Create a new rule"""
         if not rule.uid:
-            raise ValueError("Rule must have a UID")
+            rule.uid = generate_uid()
 
         # Prepare payload
         payload = rule.model_dump()
@@ -639,12 +678,13 @@ class OpenHABClient:
         self, script_id: str, script_type: str, content: str
     ) -> RuleDetails:
         """Create a new script.  A script is a rule without a trigger and tag of 'Script'"""
-        if not script_id:
-            raise ValueError("Script must have an ID")
         if not content:
             raise ValueError("Script content cannot be empty")
         if not script_type:
             raise ValueError("Script type cannot be empty")
+        
+        if not script_id:
+            script_id = generate_uid()
 
         rule = RuleDetails(
             uid=script_id,
@@ -785,7 +825,9 @@ class OpenHABClient:
 
         # Sort the links
         reverse_sort = sort_order.lower() == "desc"
-        links.sort(key=lambda x: str(x.itemName + x.channelUID).lower(), reverse=reverse_sort)
+        links.sort(
+            key=lambda x: str(x.itemName + x.channelUID).lower(), reverse=reverse_sort
+        )
 
         # Calculate pagination
         total_elements = len(links)
@@ -813,14 +855,16 @@ class OpenHABClient:
                 has_previous=start_idx > 0,
             ),
         )
-    
+
     def get_link(self, item_name: str, channel_uid: str) -> Optional[Link]:
         """Get a specific link by item name and channel UID"""
         if item_name is None or channel_uid is None:
             return None
 
         try:
-            response = self.session.get(f"{self.base_url}/rest/links/{item_name}/{channel_uid.replace('#', '%23')}")
+            response = self.session.get(
+                f"{self.base_url}/rest/links/{item_name}/{channel_uid.replace('#', '%23')}"
+            )
             response.raise_for_status()
 
             return Link(**response.json())
@@ -839,7 +883,10 @@ class OpenHABClient:
 
         payload = link.model_dump()
 
-        response = self.session.put(f"{self.base_url}/rest/links/{link.itemName}/{link.channelUID.replace('#', '%23')}", json=payload)
+        response = self.session.put(
+            f"{self.base_url}/rest/links/{link.itemName}/{link.channelUID.replace('#', '%23')}",
+            json=payload,
+        )
         response.raise_for_status()
 
         # Get the created link
@@ -853,25 +900,63 @@ class OpenHABClient:
         if not link.channelUID:
             raise ValueError("Link must have a channel UID")
 
-        existing_link = self.get_link(link.itemName, link.channelUID.replace('#', '%23'))
+        existing_link = self.get_link(
+            link.itemName, link.channelUID.replace("#", "%23")
+        )
         if not existing_link:
-            raise ValueError(f"Link with item name '{link.itemName}' and channel UID '{link.channelUID}' not found")
+            raise ValueError(
+                f"Link with item name '{link.itemName}' and channel UID '{link.channelUID}' not found"
+            )
 
         created_link = self.create_link(link)
 
         # Get the updated link
         return created_link
-        
+
     def delete_link(self, item_name: str, channel_uid: str) -> bool:
         """Delete an existing link"""
         if item_name is None or channel_uid is None:
             return False
 
         try:
-            response = self.session.delete(f"{self.base_url}/rest/links/{item_name}/{channel_uid.replace('#', '%23')}")
+            response = self.session.delete(
+                f"{self.base_url}/rest/links/{item_name}/{channel_uid.replace('#', '%23')}"
+            )
             response.raise_for_status()
             return True
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return False
             raise
+
+
+if __name__ == "__main__":
+    for i in range(10):
+        print(generate_uid())
+    
+    thing = ThingDetails(
+        label="Test Thing",
+        description="This is a test thing",
+        thingTypeUID="mqtt:awtrix",
+        bridgeUID="bridge1",
+        location="location1",
+        configuration={},
+        properties={},
+        channels=[],
+        handlers=[],
+        status="INITIALIZED",
+        statusDetail="NONE"
+    )
+
+    if not thing.UID:
+        thing.UID = (
+            thing.thingTypeUID
+            + ":"
+            + (
+                (thing.bridgeUID + ":" + generate_uid())
+                if thing.bridgeUID
+                else generate_uid()
+                )
+            )
+        
+    print(thing.UID)
