@@ -55,6 +55,7 @@ OPENHAB_URL = os.environ.get("OPENHAB_URL", "http://localhost:8080")
 OPENHAB_API_TOKEN = os.environ.get("OPENHAB_API_TOKEN")
 OPENHAB_USERNAME = os.environ.get("OPENHAB_USERNAME")
 OPENHAB_PASSWORD = os.environ.get("OPENHAB_PASSWORD")
+OPENHAB_GENERATE_UIDS = os.environ.get("OPENHAB_GENERATE_UIDS", "false").lower() in ["true", "1", "t"]
 
 if not OPENHAB_API_TOKEN and not (OPENHAB_USERNAME and OPENHAB_PASSWORD):
     print(
@@ -72,6 +73,7 @@ openhab_client = OpenHABClient(
     api_token=OPENHAB_API_TOKEN,
     username=OPENHAB_USERNAME,
     password=OPENHAB_PASSWORD,
+    generate_uids=OPENHAB_GENERATE_UIDS,
 )
 
 # @mcp.tool()

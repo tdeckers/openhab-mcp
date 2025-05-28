@@ -24,14 +24,6 @@ from models import (
 
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
-
-def generate_uid() -> str:
-    return "".join(
-        random.SystemRandom().choice(string.ascii_lowercase + string.digits)
-        for _ in range(10)
-    )
-
-
 class OpenHABClient:
     """Client for interacting with the openHAB REST API"""
 
@@ -41,6 +33,7 @@ class OpenHABClient:
         api_token: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
+        generate_uids: bool = False,
     ):
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
@@ -50,6 +43,12 @@ class OpenHABClient:
             self.session.headers.update({"X-OPENHAB-TOKEN": api_token})
         elif username and password:
             self.session.auth = (username, password)
+
+    def generate_uid(self) -> str:
+        return "".join(
+            random.SystemRandom().choice(string.ascii_lowercase + string.digits)
+            for _ in range(10)
+        )
 
     def list_items(
         self,
@@ -419,26 +418,34 @@ class OpenHABClient:
             raise ValueError("Thing must have a thingTypeUID")
 
         if not thing.UID:
-            thing.UID = (
-                thing.thingTypeUID
-                + ":"
-                + (
-                    (thing.bridgeUID + ":" + generate_uid())
-                    if thing.bridgeUID
-                    else generate_uid()
+            if self.generate_uids:
+                thing.UID = (
+                    thing.thingTypeUID
+                    + ":"
+                    + (
+                        (thing.bridgeUID + ":" + self.generate_uid())
+                        if thing.bridgeUID
+                        else self.generate_uid()
+                    )
                 )
-            )
-
-        payload = thing.model_dump()
-        try:
-            payload.update({"ID": thing.UID.split(":")[-1]})
-        except Exception as e:
+            else:
+                raise ValueError("Thing must have a UID")
+        
+        if thing.bridgeUID:
+            pattern = r"{0}:{1}:(.+)".format(thing.thingTypeUID, thing.bridgeUID)
+        else:
+            pattern = r"{0}:(.+)".format(thing.thingTypeUID)
+        result = re.search(pattern, thing.UID)
+        if not result:
             raise ValueError(
                 "Thing UID must be in format 'thing_type_uid:thing_uid' or 'thing_type_uid:bridge_uid:thing_uid'"
             )
 
-        #response = self.session.post(f"{self.base_url}/rest/things", json=payload)
-        #response.raise_for_status()
+        payload = thing.model_dump()
+        payload.update({"ID": result.groups()[-1]})
+
+        response = self.session.post(f"{self.base_url}/rest/things", json=payload)
+        response.raise_for_status()
 
         # Get the created thing
         return self.get_thing_details(thing.UID)
@@ -621,7 +628,10 @@ class OpenHABClient:
     def create_rule(self, rule: RuleDetails) -> RuleDetails:
         """Create a new rule"""
         if not rule.uid:
-            rule.uid = generate_uid()
+            if self.generate_uids:
+                rule.uid = self.generate_uid()
+            else:
+                raise ValueError("Rule must have a UID")
 
         # Prepare payload
         payload = rule.model_dump()
@@ -928,35 +938,3 @@ class OpenHABClient:
             if e.response.status_code == 404:
                 return False
             raise
-
-
-if __name__ == "__main__":
-    for i in range(10):
-        print(generate_uid())
-    
-    thing = ThingDetails(
-        label="Test Thing",
-        description="This is a test thing",
-        thingTypeUID="mqtt:awtrix",
-        bridgeUID="bridge1",
-        location="location1",
-        configuration={},
-        properties={},
-        channels=[],
-        handlers=[],
-        status="INITIALIZED",
-        statusDetail="NONE"
-    )
-
-    if not thing.UID:
-        thing.UID = (
-            thing.thingTypeUID
-            + ":"
-            + (
-                (thing.bridgeUID + ":" + generate_uid())
-                if thing.bridgeUID
-                else generate_uid()
-                )
-            )
-        
-    print(thing.UID)
