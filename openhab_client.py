@@ -218,6 +218,8 @@ class OpenHABClient:
         current_item = self.get_item_details(item_name)
         if not current_item:
             raise ValueError(f"Item with name '{item_name}' not found")
+        if item.transformedState and item.transformedState != current_item.transformedState:
+            raise ValueError(f"Cannot update transformedState of item '{item_name}'. Update state instead.")
 
         # Prepare update payload
         payload = {
@@ -228,6 +230,11 @@ class OpenHABClient:
             "category": item.category or current_item.category,
             "tags": item.tags or current_item.tags,
             "groupNames": item.groupNames or current_item.groupNames,
+            "members": item.members or current_item.members,
+            "metadata": item.metadata or current_item.metadata,
+            "commandDescription": item.commandDescription or current_item.commandDescription,
+            "stateDescription": item.stateDescription or current_item.stateDescription,
+            "unitSymbol": item.unitSymbol or current_item.unitSymbol,
         }
 
         response = self.session.put(
@@ -813,7 +820,7 @@ class OpenHABClient:
             return None
 
         try:
-            response = self.session.get(f"{self.base_url}/rest/links/{item_name}/{channel_uid}")
+            response = self.session.get(f"{self.base_url}/rest/links/{item_name}/{channel_uid.replace('#', '%23')}")
             response.raise_for_status()
 
             return Link(**response.json())
@@ -832,7 +839,7 @@ class OpenHABClient:
 
         payload = link.model_dump()
 
-        response = self.session.put(f"{self.base_url}/rest/links/{link.itemName}/{link.channelUID}", json=payload)
+        response = self.session.put(f"{self.base_url}/rest/links/{link.itemName}/{link.channelUID.replace('#', '%23')}", json=payload)
         response.raise_for_status()
 
         # Get the created link
@@ -846,7 +853,7 @@ class OpenHABClient:
         if not link.channelUID:
             raise ValueError("Link must have a channel UID")
 
-        existing_link = self.get_link(link.itemName, link.channelUID)
+        existing_link = self.get_link(link.itemName, link.channelUID.replace('#', '%23'))
         if not existing_link:
             raise ValueError(f"Link with item name '{link.itemName}' and channel UID '{link.channelUID}' not found")
 
@@ -861,7 +868,7 @@ class OpenHABClient:
             return False
 
         try:
-            response = self.session.delete(f"{self.base_url}/rest/links/{item_name}/{channel_uid}")
+            response = self.session.delete(f"{self.base_url}/rest/links/{item_name}/{channel_uid.replace('#', '%23')}")
             response.raise_for_status()
             return True
         except requests.exceptions.HTTPError as e:
