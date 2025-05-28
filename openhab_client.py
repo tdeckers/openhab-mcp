@@ -529,7 +529,7 @@ class OpenHABClient:
             raise ValueError(f"Rule with UID '{rule_uid}' not found")
 
         # Get the current rule as a dictionary
-        current_rule_dict = current_rule.dict()
+        current_rule_dict = current_rule.model_dump()
 
         # Merge with updates (only updating provided fields)
         for key, value in rule_updates.items():
