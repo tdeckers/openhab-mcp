@@ -438,7 +438,7 @@ class OpenHABClient:
         result = re.search(pattern, thing.UID)
         if not result:
             raise ValueError(
-                "Thing UID must be in format 'thing_type_uid:thing_uid' or 'thing_type_uid:bridge_uid:thing_uid'"
+                "Thing UID must be in format 'binding_id:thing_type_id' or 'binding_id:thing_type_id:bridge_id:thing_id'"
             )
 
         payload = thing.model_dump()
