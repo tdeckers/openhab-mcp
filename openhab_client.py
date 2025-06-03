@@ -243,7 +243,17 @@ class OpenHABClient:
                 f"Cannot update transformedState of item '{item.name}'. Update state instead."
             )
 
-        # Prepare update payload
+        # Helper function to safely convert Pydantic models to dict
+        def to_dict(value):
+            if hasattr(value, 'model_dump'):
+                return value.model_dump()
+            elif isinstance(value, dict):
+                return {k: to_dict(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [to_dict(v) for v in value]
+            return value
+
+        # Prepare update payload with proper serialization
         payload = {
             "type": item.type or current_item.type,
             "name": item.name,
@@ -252,11 +262,10 @@ class OpenHABClient:
             "category": item.category or current_item.category,
             "tags": item.tags or current_item.tags,
             "groupNames": item.groupNames or current_item.groupNames,
-            "members": item.members or current_item.members,
-            "metadata": item.metadata or current_item.metadata,
-            "commandDescription": item.commandDescription
-            or current_item.commandDescription,
-            "stateDescription": item.stateDescription or current_item.stateDescription,
+            "members": [to_dict(m) for m in (item.members or current_item.members)],
+            "metadata": to_dict(item.metadata or current_item.metadata or {}),
+            "commandDescription": to_dict(item.commandDescription or current_item.commandDescription),
+            "stateDescription": to_dict(item.stateDescription or current_item.stateDescription),
             "unitSymbol": item.unitSymbol or current_item.unitSymbol,
         }
 

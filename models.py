@@ -27,6 +27,10 @@ class Item(CustomBaseModel):
     groupNames: List[str] = []
     has_details: bool = True
 
+    @property
+    def get_details(self):
+        return f"get_item_details(name='{self.name}')"
+
 class CommandOptions(TypedDict):
     command: str
     label: str
@@ -80,6 +84,10 @@ class Thing(CustomBaseModel):
     properties: Dict[str, str] = Field(default_factory=dict)
     has_details: bool = True
 
+    @property
+    def get_details(self):
+        return f"get_thing_details(name='{self.name}')"
+
 class ThingDetails(Thing):
     channels: List[Dict[str, Any]] = Field(default_factory=list)
 
@@ -111,6 +119,10 @@ class Rule(CustomBaseModel):
     visibility: Optional[str] = None
     editable: bool = True
     has_details: bool = True
+    
+    @property
+    def get_details(self):
+        return f"get_rule_details(uid='{self.uid}')"
 
 class RuleDetails(Rule):
     description: Optional[str] = None
