@@ -12,7 +12,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Configure logging to suppress INFO messages
 logging.basicConfig(level=logging.DEBUG)
@@ -35,14 +35,10 @@ from models import (
     PaginatedThings,
     PaginatedItems,
     PaginatedRules,
-    Rule,
     RuleDetails,
     ItemPersistence,
 )
 from openhab_client import OpenHABClient
-
-# mcp = FastMCP("OpenHAB MCP Server")
-mcp = FastMCP("OpenHAB MCP Server", stateless_http=True)
 
 # Load environment variables from .env file
 env_file = Path(".env")
@@ -55,7 +51,17 @@ OPENHAB_URL = os.environ.get("OPENHAB_URL", "http://localhost:8080")
 OPENHAB_API_TOKEN = os.environ.get("OPENHAB_API_TOKEN")
 OPENHAB_USERNAME = os.environ.get("OPENHAB_USERNAME")
 OPENHAB_PASSWORD = os.environ.get("OPENHAB_PASSWORD")
-OPENHAB_GENERATE_UIDS = os.environ.get("OPENHAB_GENERATE_UIDS", "false").lower() in ["true", "1", "t"]
+OPENHAB_GENERATE_UIDS = os.environ.get("OPENHAB_GENERATE_UIDS", "false").lower() in [
+    "true",
+    "1",
+    "t",
+]
+OPENHAB_MCP_TRANSPORT = os.environ.get("OPENHAB_MCP_TRANSPORT", "stdio")
+
+if OPENHAB_MCP_TRANSPORT == "streamable-http":
+    mcp = FastMCP("OpenHAB MCP Server", stateless_http=True)
+else:
+    mcp = FastMCP("OpenHAB MCP Server")
 
 if not OPENHAB_API_TOKEN and not (OPENHAB_USERNAME and OPENHAB_PASSWORD):
     print(
@@ -76,33 +82,44 @@ openhab_client = OpenHABClient(
     generate_uids=OPENHAB_GENERATE_UIDS,
 )
 
-# @mcp.tool()
-# def list_items(filter_tag: Optional[str] = None)-> List[Item]:
-#     """List all openHAB items, optionally filtered by tag"""
-#     items = openhab_client.list_items(filter_tag)
-#     return items
-
 
 def __validate_model(model: BaseModel):
     if len(model.model_extra) > 0:
-        raise ValueError("Unsupported fields: " + ', '.join(model.model_extra.keys()))
+        raise ValueError("Unsupported fields: " + ", ".join(model.model_extra.keys()))
 
 
 @mcp.tool()
 def list_items(
-    page: int = 1,
-    page_size: int = 15,
-    sort_by: str = "name",
-    sort_order: str = "asc",
-    filter_tag: Optional[str] = None,
-    filter_type: Optional[str] = None,
+    page: int = Field(
+        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
+        default=1,
+    ),
+    page_size: int = Field(description="Number of elements per page", default=50),
+    sort_by: str = Field(
+        description="Field to sort by", examples=["name", "label"], default="name"
+    ),
+    sort_order: str = Field(
+        description="Sort order", examples=["asc", "desc"], default="asc"
+    ),
+    filter_tag: Optional[str] = Field(
+        description="Optional filter items by tag name. All available tags can be retrieved from the `list_tags` tool",
+        examples=["Location", "Window", "Light", "FrontDoor"],
+        default=None,
+    ),
+    filter_type: Optional[str] = Field(
+        description="Optional filter items by type",
+        examples=["Switch", "Group", "String"],
+        default=None,
+    ),
 ) -> PaginatedItems:
     """
-    List openHAB items with basic information with pagination
+    Gives a list of openHAB items with only basic information. Use this tool
+    to get an overview of your items. Use the `get_item_details` tool to get
+    more information about a specific item.
 
     Args:
         page: 1-based page number (default: 1)
-        page_size: Number of elements per page (default: 15)
+        page_size: Number of elements per page (default: 50)
         sort_by: Field to sort by (e.g., "name", "label") (default: "name")
         sort_order: Sort order ("asc" or "desc") (default: "asc")
     """
@@ -117,25 +134,50 @@ def list_items(
 
 
 @mcp.tool()
-def get_item_details(item_name: str, include_members: bool = False) -> Optional[ItemDetails]:
-    """Get a specific openHAB item with more details. Group members are included if include_members is True"""
-    item = openhab_client.get_item_details(item_name, include_members)
+def get_item_details(
+    item_name: str = Field(description="Name of the item to get details for"),
+) -> Optional[ItemDetails]:
+    """
+    Gives complete details of an openHAB item, e.g. its
+    members (if it is a group item), metadata, commandDescription,
+    stateDescription and unitSymbol.
+
+    Use this tool when you need additional information about a specific item
+    that you have received from `list_items`.
+
+    Args:
+        item_name: Name of the item to get details for
+    """
+    item = openhab_client.get_item_details(item_name)
     return item
 
+
 @mcp.tool()
-def create_item_metadata(item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
+def create_item_metadata(
+    item_name: str = Field(description="Name of the item to create metadata for"),
+    namespace: str = Field(description="Namespace of the metadata"),
+    metadata: ItemMetadata = Field(description="Metadata to create"),
+) -> ItemDetails:
     """Create new metadata for a specific openHAB item"""
     __validate_model(metadata)
     return openhab_client.create_item_metadata(item_name, namespace, metadata)
 
+
 @mcp.tool()
-def update_item_metadata(item_name: str, namespace: str, metadata: ItemMetadata) -> ItemDetails:
+def update_item_metadata(
+    item_name: str = Field(description="Name of the item to update metadata for"),
+    namespace: str = Field(description="Namespace of the metadata"),
+    metadata: ItemMetadata = Field(description="Metadata to update"),
+) -> ItemDetails:
     """Update metadata for a specific openHAB item"""
     __validate_model(metadata)
     return openhab_client.update_item_metadata(item_name, namespace, metadata)
 
+
 @mcp.tool()
-def create_item(item: ItemDetails) -> ItemDetails:
+def create_item(
+    item: ItemDetails = Field(description="Item details to create"),
+) -> ItemDetails:
     """Create a new openHAB item"""
     __validate_model(item)
     created_item = openhab_client.create_item(item)
@@ -143,7 +185,10 @@ def create_item(item: ItemDetails) -> ItemDetails:
 
 
 @mcp.tool()
-def update_item(item_name: str, item: ItemDetails) -> ItemDetails:
+def update_item(
+    item_name: str = Field(description="Name of the item to update"),
+    item: ItemDetails = Field(description="Item details to update"),
+) -> ItemDetails:
     """Update an existing openHAB item"""
     __validate_model(item)
     updated_item = openhab_client.update_item(item_name, item)
@@ -151,13 +196,21 @@ def update_item(item_name: str, item: ItemDetails) -> ItemDetails:
 
 
 @mcp.tool()
-def delete_item(item_name: str) -> bool:
+def delete_item(
+    item_name: str = Field(description="Name of the item to delete"),
+) -> bool:
     """Delete an openHAB item"""
     return openhab_client.delete_item(item_name)
 
 
 @mcp.tool()
-def update_item_state(item_name: str, state: str) -> Item:
+def update_item_state(
+    item_name: str = Field(description="Name of the item to update state for"),
+    state: str = Field(
+        description="State to update. Allowed states depend on the item type",
+        examples=["ON", "OFF", "140.5", "20 kWH", "2025-06-03T22:21:13.123Z"],
+    ),
+) -> Item:
     """Update the state of an openHAB item"""
     updated_item = openhab_client.update_item_state(item_name, state)
     return updated_item
@@ -165,23 +218,51 @@ def update_item_state(item_name: str, state: str) -> Item:
 
 @mcp.tool()
 def get_item_persistence(
-    item_name: str, start: str = None, end: str = None
+    item_name: str = Field(description="Name of the item to get persistence for"),
+    start: str = Field(
+        description="Start time in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']",
+        examples=["2025-06-03T22:21:13.123Z"],
+    ),
+    end: str = Field(
+        description="End time in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']",
+        examples=["2025-06-03T22:21:13.123Z"],
+    ),
 ) -> ItemPersistence:
-    """Get the persistence values of an openHAB item between start and end in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"""
+    """
+    Get the persistence values of an openHAB item between start and end in zulu time format
+    [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
+
+    Args:
+        item_name: Name of the item to get persistence for
+        start: Start time in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
+        end: End time in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
+    """
     persistence = openhab_client.get_item_persistence(item_name, start, end)
     return persistence
 
 
 @mcp.tool()
 def list_locations(
-    page: int = 1, page_size: int = 15, sort_by: str = "name", sort_order: str = "asc"
+    page: int = Field(
+        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
+        default=1,
+    ),
+    page_size: int = Field(description="Number of elements per page", default=50),
+    sort_by: str = Field(
+        description="Field to sort by", examples=["name", "label"], default="name"
+    ),
+    sort_order: str = Field(
+        description="Sort order", examples=["asc", "desc"], default="asc"
+    ),
 ) -> PaginatedItems:
     """
-    List openHAB locations with basic information with pagination. A location is an item with a tag of 'Location'.
+    Locations are items with a tag of 'Location'. List openHAB locations with basic information
+    with pagination. Use the `get_item_details` tool to get more information about a specific
+    location item.
 
     Args:
         page: 1-based page number (default: 1)
-        page_size: Number of elements per page (default: 15)
+        page_size: Number of elements per page (default: 50)
         sort_by: Field to sort by (e.g., "name", "label") (default: "name")
         sort_order: Sort order ("asc" or "desc") (default: "asc")
     """
@@ -190,24 +271,27 @@ def list_locations(
     )
     return locations
 
-
-# @mcp.tool()
-# def list_things() -> List[ThingSummary]:
-#     """List all openHAB things with summary information"""
-#     things = openhab_client.list_things()
-#     return things
-
-
 @mcp.tool()
 def list_things(
-    page: int = 1, page_size: int = 15, sort_by: str = "UID", sort_order: str = "asc"
+    page: int = Field(
+        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
+        default=1,
+    ),
+    page_size: int = Field(description="Number of elements per page", default=50),
+    sort_by: str = Field(
+        description="Field to sort by", examples=["UID", "label"], default="UID"
+    ),
+    sort_order: str = Field(
+        description="Sort order", examples=["asc", "desc"], default="asc"
+    ),
 ) -> PaginatedThings:
     """
-    List openHAB things with basic information with pagination
+    List openHAB things with basic information with pagination. Use the `get_thing_details` tool to get
+    more information about a specific thing.
 
     Args:
         page: 1-based page number (default: 1)
-        page_size: Number of elements per page (default: 15)
+        page_size: Number of elements per page (default: 50)
         sort_by: Field to sort by (e.g., "UID", "label") (default: "UID")
         sort_order: Sort order ("asc" or "desc") (default: "asc")
     """
@@ -217,41 +301,81 @@ def list_things(
 
 
 @mcp.tool()
-def get_thing_details(thing_uid: str) -> Optional[ThingDetails]:
-    """Get a specific openHAB thing with more details by UID"""
+def get_thing_details(
+    thing_uid: str = Field(description="UID of the thing to get details for"),
+) -> Optional[ThingDetails]:
+    """
+    Get a specific openHAB thing with more details by UID. Use the `get_thing_details` tool to get
+    more information about a specific thing.
+
+    Args:
+        thing_uid: UID of the thing to get details for
+    """
     thing_details = openhab_client.get_thing_details(thing_uid)
     return thing_details
 
 
 @mcp.tool()
-def create_thing(thing: Thing) -> Optional[ThingDetails]:
-    """Create a new openHAB thing"""
+def create_thing(
+    thing: Thing = Field(description="Thing to create"),
+) -> Optional[ThingDetails]:
+    """
+    Create a new openHAB thing.
+
+    Args:
+        thing: Thing to create
+    """
     __validate_model(thing)
     created_thing = openhab_client.create_thing(thing)
     return created_thing
 
 
 @mcp.tool()
-def update_thing(thing_uid: str, thing: ThingDetails) -> Optional[ThingDetails]:
-    """Update an existing openHAB thing"""
+def update_thing(
+    thing_uid: str = Field(description="UID of the thing to update"),
+    thing: Thing = Field(description="Thing to update"),
+) -> Optional[ThingDetails]:
+    """
+    Update an existing openHAB thing.
+
+    Args:
+        thing_uid: UID of the thing to update
+        thing: Thing to update
+    """
     __validate_model(thing)
     updated_thing = openhab_client.update_thing(thing_uid, thing)
     return updated_thing
 
 
 @mcp.tool()
-def delete_thing(thing_uid: str) -> bool:
-    """Delete an openHAB thing"""
+def delete_thing(
+    thing_uid: str = Field(description="UID of the thing to delete"),
+) -> bool:
+    """
+    Delete an openHAB thing.
+
+    Args:
+        thing_uid: UID of the thing to delete
+    """
     return openhab_client.delete_thing(thing_uid)
 
 
 @mcp.tool()
 def list_rules(
-    page: int = 1,
-    page_size: int = 15,
-    sort_by: str = "UID",
-    sort_order: str = "asc",
-    filter_tag: Optional[str] = None,
+    page: int = Field(
+        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
+        default=1,
+    ),
+    page_size: int = Field(description="Number of elements per page", default=50),
+    sort_by: str = Field(
+        description="Field to sort by", examples=["UID", "label"], default="UID"
+    ),
+    sort_order: str = Field(
+        description="Sort order", examples=["asc", "desc"], default="asc"
+    ),
+    filter_tag: Optional[str] = Field(
+        description="Filter rules by tag (default: None)", default=None
+    ),
 ) -> PaginatedRules:
     """
     List openHAB rules with basic information with pagination
@@ -273,17 +397,35 @@ def list_rules(
 
 
 @mcp.tool()
-def get_rule_details(rule_uid: str) -> Optional[RuleDetails]:
-    """Get a specific openHAB rule with more details by UID"""
+def get_rule_details(
+    rule_uid: str = Field(description="UID of the rule to get details for"),
+) -> Optional[RuleDetails]:
+    """
+    Get a specific openHAB rule with more details by UID.
+
+    Args:
+        rule_uid: UID of the rule to get details for
+    """
     rule_details = openhab_client.get_rule_details(rule_uid)
     return rule_details
 
 
 @mcp.tool()
 def list_scripts(
-    page: int = 1, page_size: int = 15, sort_by: str = "UID", sort_order: str = "asc"
+    page: int = Field(
+        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
+        default=1,
+    ),
+    page_size: int = Field(description="Number of elements per page", default=50),
+    sort_by: str = Field(
+        description="Field to sort by", examples=["UID", "label"], default="UID"
+    ),
+    sort_order: str = Field(
+        description="Sort order", examples=["asc", "desc"], default="asc"
+    ),
 ) -> PaginatedRules:
-    """List all openHAB scripts. A script is a rule without a trigger and tag of 'Script'
+    """
+    List all openHAB scripts. A script is a rule without a trigger and tag of 'Script'
 
     Args:
         page: 1-based page number (default: 1)
@@ -297,24 +439,53 @@ def list_scripts(
 
 
 @mcp.tool()
-def get_script_details(script_id: str) -> Optional[RuleDetails]:
-    """Get a specific openHAB script with more details by ID. A script is a rule without a trigger and tag of 'Script'"""
+def get_script_details(
+    script_id: str = Field(description="ID of the script to get details for"),
+) -> Optional[RuleDetails]:
+    """
+    Get a specific openHAB script with more details by ID. A script is a rule without a trigger and tag of 'Script'
+
+    Args:
+        script_id: ID of the script to get details for
+    """
     script_details = openhab_client.get_script_details(script_id)
     return script_details
 
 
 @mcp.tool()
-def update_rule(rule_uid: str, rule_updates: Dict[str, Any]) -> RuleDetails:
-    """Update an existing openHAB rule with partial updates"""
+def update_rule(
+    rule_uid: str = Field(description="UID of the rule to update"),
+    rule_updates: Dict[str, Any] = Field(
+        description="Partial updates to apply to the rule"
+    ),
+) -> RuleDetails:
+    """
+    Update an existing openHAB rule with partial updates.
+
+    Args:
+        rule_uid: UID of the rule to update
+        rule_updates: Partial updates to apply to the rule
+    """
     updated_rule = openhab_client.update_rule(rule_uid, rule_updates)
     return updated_rule
 
 
 @mcp.tool()
 def update_rule_script_action(
-    rule_uid: str, action_id: str, script_type: str, script_content: str
+    rule_uid: str = Field(description="UID of the rule to update"),
+    action_id: str = Field(description="ID of the action to update"),
+    script_type: str = Field(description="Type of the script"),
+    script_content: str = Field(description="Content of the script"),
 ) -> RuleDetails:
-    """Update a script action in an openHAB rule"""
+    """
+    Update a script action in an openHAB rule.
+
+    Args:
+        rule_uid: UID of the rule to update
+        action_id: ID of the action to update
+        script_type: Type of the script
+        script_content: Content of the script
+    """
     updated_rule = openhab_client.update_rule_script_action(
         rule_uid, action_id, script_type, script_content
     )
@@ -322,65 +493,128 @@ def update_rule_script_action(
 
 
 @mcp.tool()
-def create_rule(rule: RuleDetails) -> RuleDetails:
-    """Create a new openHAB rule"""
+def create_rule(rule: RuleDetails = Field(description="Rule to create")) -> RuleDetails:
+    """
+    Create a new openHAB rule.
+
+    Args:
+        rule: Rule to create
+    """
     __validate_model(rule)
     created_rule = openhab_client.create_rule(rule)
     return created_rule
 
 
 @mcp.tool()
-def delete_rule(rule_uid: str) -> bool:
-    """Delete an openHAB rule"""
+def delete_rule(rule_uid: str = Field(description="UID of the rule to delete")) -> bool:
+    """
+    Delete an openHAB rule.
+
+    Args:
+        rule_uid: UID of the rule to delete
+    """
     return openhab_client.delete_rule(rule_uid)
 
 
 @mcp.tool()
-def create_script(script_id: str, script_type: str, content: str) -> RuleDetails:
-    """Create a new openHAB script. A script is a rule without a trigger and tag of 'Script'"""
+def create_script(
+    script_id: str = Field(description="ID of the script to create"),
+    script_type: str = Field(description="Type of the script"),
+    content: str = Field(description="Content of the script"),
+) -> RuleDetails:
+    """
+    Create a new openHAB script. A script is a rule without a trigger and tag of 'Script'. 
+
+    Args:
+        script_id: ID of the script to create
+        script_type: Type of the script
+        content: Content of the script
+    """
     created_script = openhab_client.create_script(script_id, script_type, content)
     return created_script
 
 
 @mcp.tool()
-def update_script(script_id: str, script_type: str, content: str) -> RuleDetails:
-    """Update an existing openHAB script. A script is a rule without a trigger and tag of 'Script'"""
+def update_script(
+    script_id: str = Field(description="ID of the script to update"),
+    script_type: str = Field(description="Type of the script"),
+    content: str = Field(description="Content of the script"),
+) -> RuleDetails:
+    """
+    Update an existing openHAB script. A script is a rule without a trigger and tag of 'Script'.
+
+    Args:
+        script_id: ID of the script to update
+        script_type: Type of the script
+        content: Content of the script
+    """
     updated_script = openhab_client.update_script(script_id, script_type, content)
     return updated_script
 
 
 @mcp.tool()
-def delete_script(script_id: str) -> bool:
-    """Delete an openHAB script. A script is a rule without a trigger and tag of 'Script'"""
+def delete_script(
+    script_id: str = Field(description="ID of the script to delete"),
+) -> bool:
+    """
+    Delete an openHAB script. A script is a rule without a trigger and tag of 'Script'.
+
+    Args:
+        script_id: ID of the script to delete
+    """
     return openhab_client.delete_script(script_id)
 
 
 @mcp.tool()
-def run_rule_now(rule_uid: str) -> bool:
-    """Run an openHAB rule immediately"""
+def run_rule_now(rule_uid: str = Field(description="UID of the rule to run")) -> bool:
+    """
+    Run an openHAB rule immediately.
+
+    Args:
+        rule_uid: UID of the rule to run
+    """
     return openhab_client.run_rule_now(rule_uid)
 
 
 @mcp.tool()
-def list_tags(parent_tag_uid: Optional[str] = None) -> List[Tag]:
-    """List all openHAB tags, optionally filtered by parent tag"""
+def list_tags(
+    parent_tag_uid: Optional[str] = Field(
+        description="UID of the parent tag to filter by"
+    ),
+) -> List[Tag]:
+    """
+    List all openHAB tags, optionally filtered by parent tag.
+
+    Args:
+        parent_tag_uid: UID of the parent tag to filter by
+    """
     tags = openhab_client.list_tags(parent_tag_uid)
     return tags
 
 
 @mcp.tool()
-def get_tag(tag_uid: str) -> Optional[Tag]:
-    """Get a specific openHAB tag by uid"""
+def get_tag(
+    tag_uid: str = Field(description="UID of the tag to get details for"),
+) -> Optional[Tag]:
+    """
+    Get a specific openHAB tag by uid.
+
+    Args:
+        tag_uid: UID of the tag to get details for
+    """
     tag = openhab_client.get_tag(tag_uid)
     return tag
 
 
 @mcp.tool()
-def create_tag(tag: Tag) -> Tag:
+def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
     """
     Create a new openHAB tag.
     Tags can support multiple levels of hierarchy with the pattern 'parent_child'.
     When adding tags to items only the tag name and not the uid is assigned.
+
+    Args:
+        tag: Tag to create
     """
     __validate_model(tag)
     created_tag = openhab_client.create_tag(tag)
@@ -388,50 +622,99 @@ def create_tag(tag: Tag) -> Tag:
 
 
 @mcp.tool()
-def delete_tag(tag_uid: str) -> bool:
-    """Delete an openHAB tag"""
+def delete_tag(tag_uid: str = Field(description="UID of the tag to delete")) -> bool:
+    """
+    Delete an openHAB tag.
+
+    Args:
+        tag_uid: UID of the tag to delete
+    """
     return openhab_client.delete_tag(tag_uid)
 
 
 @mcp.tool()
 def list_links(
-    page: int = 1,
-    page_size: int = 15,
-    sort_order: str = "asc",
-    item_name: Optional[str] = None) -> PaginatedLinks:
-    """List all openHAB item to thing links, optionally filtered by item name with pagination"""
+    page: int = Field(
+        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
+        default=1,
+    ),
+    page_size: int = Field(description="Number of elements per page", default=50),
+    sort_order: str = Field(
+        description="Sort order", examples=["asc", "desc"], default="asc"
+    ),
+    item_name: Optional[str] = Field(
+        description="Optional filter links by item name", default=None
+    ),
+) -> PaginatedLinks:
+    """
+    List all openHAB item to thing links, optionally filtered by item name with pagination.
+
+    Args:
+        page: 1-based page number (default: 1)
+        page_size: Number of elements per page (default: 50)
+        sort_order: Sort order ("asc" or "desc") (default: "asc")
+        item_name: Optional filter links by item name (default: None)
+    """
     links = openhab_client.list_links(page, page_size, sort_order, item_name)
     return links
 
 
 @mcp.tool()
-def get_link(item_name: str, channel_uid: str) -> Optional[Link]:
-    """Get a specific openHAB item to thing link by item name and channel UID"""
+def get_link(
+    item_name: str = Field(description="Name of the item to get link for"),
+    channel_uid: str = Field(description="UID of the channel to get link for"),
+) -> Optional[Link]:
+    """
+    Get a specific openHAB item to thing link by item name and channel UID.
+
+    Args:
+        item_name: Name of the item to get link for
+        channel_uid: UID of the channel to get link for
+    """
     link = openhab_client.get_link(item_name, channel_uid)
     return link
 
 
 @mcp.tool()
-def create_link(link: Link) -> Link:
-    """Create a new openHAB item to thing link"""
+def create_link(link: Link = Field(description="Link to create")) -> Link:
+    """
+    Create a new openHAB item to thing link.
+
+    Args:
+        link: Link to create
+    """
     __validate_model(link)
     created_link = openhab_client.create_link(link)
     return created_link
 
 
 @mcp.tool()
-def delete_link(item_name: str, channel_uid: str) -> bool:
-    """Delete an openHAB item to thing link"""
+def delete_link(
+    item_name: str = Field(description="Name of the item to delete link for"),
+    channel_uid: str = Field(description="UID of the channel to delete link for"),
+) -> bool:
+    """
+    Delete an openHAB item to thing link.
+
+    Args:
+        item_name: Name of the item to delete link for
+        channel_uid: UID of the channel to delete link for
+    """
     return openhab_client.delete_link(item_name, channel_uid)
 
 
 @mcp.tool()
-def update_link(link: Link) -> Link:
-    """Update an existing openHAB item to thing link"""
+def update_link(link: Link = Field(description="Link to update")) -> Link:
+    """
+    Update an existing openHAB item to thing link.
+
+    Args:
+        link: Link to update
+    """
     __validate_model(link)
     updated_link = openhab_client.update_link(link)
     return updated_link
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
+    mcp.run(transport=OPENHAB_MCP_TRANSPORT)

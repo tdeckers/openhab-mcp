@@ -18,13 +18,18 @@ class CustomBaseModel(BaseModel):
 
 class Item(CustomBaseModel):
     type: str
-    name: str
+    name: str = Field(frozen=True)
     state: Optional[str] = None
     transformedState: Optional[str] = None
     label: Optional[str] = None
     category: Optional[str] = None
     tags: List[str] = []
     groupNames: List[str] = []
+    has_details: bool = True
+
+    @property
+    def get_details(self):
+        return f"get_item_details(name='{self.name}')"
 
 class CommandOptions(TypedDict):
     command: str
@@ -50,7 +55,7 @@ class ItemMetadata(CustomBaseModel):
     config: Optional[Dict[str, Any]] = None
 
 class ItemDetails(Item):
-    members: List[Item] = []
+    members: List['ItemDetails'] = []
     metadata: Optional[Dict[str, ItemMetadata]] = None
     commandDescription: Optional[CommandDescription] = None
     stateDescription: Optional[StateDescription] = None
@@ -61,7 +66,7 @@ class DataPoint(NamedTuple):
     state: str
 
 class ItemPersistence(CustomBaseModel):
-    name: str
+    name: str = Field(frozen=True)
     data: List[DataPoint] = []
 
 class ThingStatusInfo(CustomBaseModel):
@@ -70,13 +75,18 @@ class ThingStatusInfo(CustomBaseModel):
     description: Optional[str] = None
 
 class Thing(CustomBaseModel):
-    thingTypeUID: str
-    UID: Optional[str] = None
+    thingTypeUID: str = Field(frozen=True)
+    UID: Optional[str] = Field(frozen=True)
     label: Optional[str] = None
     bridgeUID: Optional[str] = None
     statusInfo: Optional[ThingStatusInfo] = None
     configuration: Dict[str, Any] = Field(default_factory=dict)
     properties: Dict[str, str] = Field(default_factory=dict)
+    has_details: bool = True
+    
+    @property
+    def get_details(self):
+        return f"get_thing_details(name='{self.UID}')"
 
 class ThingDetails(Thing):
     channels: List[Dict[str, Any]] = Field(default_factory=list)
@@ -86,28 +96,33 @@ class RuleStatus(CustomBaseModel):
     statusDetail: str = "NONE"
 
 class RuleAction(CustomBaseModel):
-    id: str
+    id: str = Field(frozen=True)
     type: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
     inputs: Dict[str, Any] = Field(default_factory=dict)
 
 class RuleTrigger(CustomBaseModel):
-    id: str
+    id: str = Field(frozen=True)
     type: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
 
 class RuleCondition(CustomBaseModel):
-    id: str
+    id: str = Field(frozen=True)
     type: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
 
 class Rule(CustomBaseModel):
-    uid: str
+    uid: str = Field(frozen=True)
     name: str
     status: Optional[RuleStatus] = None
     tags: List[str] = []
     visibility: Optional[str] = None
     editable: bool = True
+    has_details: bool = True
+    
+    @property
+    def get_details(self):
+        return f"get_rule_details(uid='{self.uid}')"
 
 class RuleDetails(Rule):
     description: Optional[str] = None
@@ -118,16 +133,16 @@ class RuleDetails(Rule):
     configDescriptions: List[Dict[str, Any]] = Field(default_factory=list)
 
 class Tag(CustomBaseModel):
-    uid: str
+    uid: str = Field(frozen=True)
     name: str
     label: Optional[str] = None
     description: Optional[str] = None
     synonyms: List[str] = []
     editable: bool = True
-
+    
 class Link(CustomBaseModel):
-    itemName: str
-    channelUID: str
+    itemName: str = Field(frozen=True)
+    channelUID: str = Field(frozen=True)
     configuration: Dict[str, Any] = Field(default_factory=dict)
     editable: bool = True
 
@@ -138,6 +153,14 @@ class PaginationInfo(CustomBaseModel):
     total_pages: int
     has_next: bool
     has_previous: bool
+
+    @property
+    def next_page(self):
+        return self.page + 1 if self.has_next else None
+
+    @property
+    def previous_page(self):
+        return self.page - 1 if self.has_previous else None
 
 class PaginatedThings(CustomBaseModel):
     things: List[Thing]

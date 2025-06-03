@@ -24,6 +24,7 @@ from models import (
 
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
+
 class OpenHABClient:
     """Client for interacting with the openHAB REST API"""
 
@@ -150,21 +151,15 @@ class OpenHABClient:
         return locations
 
     def get_item_details(
-        self, item_name: str, include_members: bool = False
+        self, item_name: str
     ) -> Optional[ItemDetails]:
-        """Get a specific item by name"""
+        """Get a specific item by name."""
         if item_name is None:
             return None
 
-        params = {}
-        if include_members:
-            params["recursive"] = "true"
-        else:
-            params["recursive"] = "false"
-
         try:
             response = self.session.get(
-                f"{self.base_url}/rest/items/{item_name}", params=params
+                f"{self.base_url}/rest/items/{item_name}"
             )
             response.raise_for_status()
             return ItemDetails(**response.json())
@@ -430,7 +425,7 @@ class OpenHABClient:
                 )
             else:
                 raise ValueError("Thing must have a UID")
-        
+
         if thing.bridgeUID:
             pattern = r"{0}:{1}:(.+)".format(thing.thingTypeUID, thing.bridgeUID)
         else:
@@ -692,7 +687,7 @@ class OpenHABClient:
             raise ValueError("Script content cannot be empty")
         if not script_type:
             raise ValueError("Script type cannot be empty")
-        
+
         if not script_id:
             script_id = generate_uid()
 
