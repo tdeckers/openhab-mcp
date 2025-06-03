@@ -186,14 +186,12 @@ def create_item(
 
 @mcp.tool()
 def update_item(
-    item_name: str = Field(description="Name of the item to update"),
     item: ItemDetails = Field(description="Item details to update"),
 ) -> ItemDetails:
     """
     Update an existing openHAB item
 
     Args:
-        item_name: Name of the item to update
         item: Item details to update
     """
     __validate_model(item)
@@ -217,7 +215,13 @@ def update_item_state(
         examples=["ON", "OFF", "140.5", "20 kWH", "2025-06-03T22:21:13.123Z"],
     ),
 ) -> Item:
-    """Update the state of an openHAB item"""
+    """
+    Update the state of an openHAB item
+
+    Args:
+        item_name: Name of the item to update state for
+        state: State to update. Allowed states depend on the item type
+    """
     updated_item = openhab_client.update_item_state(item_name, state)
     return updated_item
 
@@ -338,18 +342,16 @@ def create_thing(
 
 @mcp.tool()
 def update_thing(
-    thing_uid: str = Field(description="UID of the thing to update"),
     thing: Thing = Field(description="Thing to update"),
 ) -> Optional[ThingDetails]:
     """
     Update an existing openHAB thing.
 
     Args:
-        thing_uid: UID of the thing to update
         thing: Thing to update
     """
     __validate_model(thing)
-    updated_thing = openhab_client.update_thing(thing_uid, thing)
+    updated_thing = openhab_client.update_thing(thing)
     return updated_thing
 
 
