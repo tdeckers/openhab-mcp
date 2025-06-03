@@ -189,7 +189,13 @@ def update_item(
     item_name: str = Field(description="Name of the item to update"),
     item: ItemDetails = Field(description="Item details to update"),
 ) -> ItemDetails:
-    """Update an existing openHAB item"""
+    """
+    Update an existing openHAB item
+
+    Args:
+        item_name: Name of the item to update
+        item: Item details to update
+    """
     __validate_model(item)
     updated_item = openhab_client.update_item(item_name, item)
     return updated_item

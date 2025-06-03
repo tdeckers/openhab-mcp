@@ -18,7 +18,7 @@ class CustomBaseModel(BaseModel):
 
 class Item(CustomBaseModel):
     type: Optional[str] = None
-    name: str = Field(frozen=True)
+    name: str
     state: Optional[str] = None
     transformedState: Optional[str] = None
     label: Optional[str] = None
@@ -66,7 +66,7 @@ class DataPoint(NamedTuple):
     state: str
 
 class ItemPersistence(CustomBaseModel):
-    name: str = Field(frozen=True)
+    name: str
     data: List[DataPoint] = []
 
 class ThingStatusInfo(CustomBaseModel):
@@ -75,8 +75,8 @@ class ThingStatusInfo(CustomBaseModel):
     description: Optional[str] = None
 
 class Thing(CustomBaseModel):
-    thingTypeUID: str = Field(frozen=True)
-    UID: Optional[str] = Field(frozen=True)
+    thingTypeUID: Optional[str] = None
+    UID: Optional[str] = None
     label: Optional[str] = None
     bridgeUID: Optional[str] = None
     statusInfo: Optional[ThingStatusInfo] = None
@@ -96,23 +96,23 @@ class RuleStatus(CustomBaseModel):
     statusDetail: str = "NONE"
 
 class RuleAction(CustomBaseModel):
-    id: str = Field(frozen=True)
+    id: str
     type: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
     inputs: Dict[str, Any] = Field(default_factory=dict)
 
 class RuleTrigger(CustomBaseModel):
-    id: str = Field(frozen=True)
+    id: str
     type: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
 
 class RuleCondition(CustomBaseModel):
-    id: str = Field(frozen=True)
+    id: str
     type: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
 
 class Rule(CustomBaseModel):
-    uid: str = Field(frozen=True)
+    uid: str
     name: str
     status: Optional[RuleStatus] = None
     tags: List[str] = []
@@ -133,7 +133,7 @@ class RuleDetails(Rule):
     configDescriptions: List[Dict[str, Any]] = Field(default_factory=list)
 
 class Tag(CustomBaseModel):
-    uid: str = Field(frozen=True)
+    uid: str
     name: str
     label: str
     description: Optional[str] = None
@@ -141,8 +141,8 @@ class Tag(CustomBaseModel):
     editable: bool = True
     
 class Link(CustomBaseModel):
-    itemName: str = Field(frozen=True)
-    channelUID: str = Field(frozen=True)
+    itemName: str
+    channelUID: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
     editable: bool = True
 
