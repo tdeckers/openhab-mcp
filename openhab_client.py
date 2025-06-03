@@ -229,12 +229,12 @@ class OpenHABClient:
 
         return self.get_item_details(item_name)
 
-    def update_item(self, item_name: str, item: ItemDetails) -> ItemDetails:
+    def update_item(self, item: ItemDetails) -> ItemDetails:
         """Update an existing item"""
         # Get current item to merge with updates
-        current_item = self.get_item_details(item_name)
+        current_item = self.get_item_details(item.name)
         if not current_item:
-            raise ValueError(f"Item with name '{item_name}' not found")
+            raise ValueError(f"Item with name '{item.name}' not found")
         if (
             item.transformedState
             and item.transformedState != current_item.transformedState
@@ -445,17 +445,17 @@ class OpenHABClient:
         # Get the created thing
         return self.get_thing_details(thing.UID)
 
-    def update_thing(self, thing_uid: str, thing: ThingDetails) -> ThingDetails:
+    def update_thing(self, thing: ThingDetails) -> ThingDetails:
         """Update an existing thing"""
         # Get current thing to merge with updates
-        current_thing = self.get_thing_details(thing_uid)
+        current_thing = self.get_thing_details(thing.UID)
         if not current_thing:
-            raise ValueError(f"Thing with UID '{thing_uid}' not found")
+            raise ValueError(f"Thing with UID '{thing.UID}' not found")
 
         # Prepare update payload
         payload = {
             "thingTypeUID": thing.thingTypeUID,
-            "UID": thing_uid,
+            "UID": thing.UID,
             "label": thing.label or current_thing.label,
             "configuration": thing.configuration or current_thing.configuration,
             "properties": thing.properties or current_thing.properties,
@@ -463,12 +463,12 @@ class OpenHABClient:
         }
 
         response = self.session.put(
-            f"{self.base_url}/rest/things/{thing_uid}", json=payload
+            f"{self.base_url}/rest/things/{thing.UID}", json=payload
         )
         response.raise_for_status()
 
         # Get the updated thing
-        return self.get_thing_details(thing_uid)
+        return self.get_thing_details(thing.UID)
 
     def delete_thing(self, thing_uid: str) -> bool:
         """Delete a thing"""

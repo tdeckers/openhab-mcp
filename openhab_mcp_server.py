@@ -195,7 +195,7 @@ def update_item(
         item: Item details to update
     """
     __validate_model(item)
-    updated_item = openhab_client.update_item(item_name, item)
+    updated_item = openhab_client.update_item(item)
     return updated_item
 
 
