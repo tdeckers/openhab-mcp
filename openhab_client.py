@@ -240,13 +240,13 @@ class OpenHABClient:
             and item.transformedState != current_item.transformedState
         ):
             raise ValueError(
-                f"Cannot update transformedState of item '{item_name}'. Update state instead."
+                f"Cannot update transformedState of item '{item.name}'. Update state instead."
             )
 
         # Prepare update payload
         payload = {
             "type": item.type or current_item.type,
-            "name": item_name,
+            "name": item.name,
             "state": item.state or current_item.state,
             "label": item.label or current_item.label,
             "category": item.category or current_item.category,
@@ -261,12 +261,12 @@ class OpenHABClient:
         }
 
         response = self.session.put(
-            f"{self.base_url}/rest/items/{item_name}", json=payload
+            f"{self.base_url}/rest/items/{item.name}", json=payload
         )
         response.raise_for_status()
 
         # Get the updated item
-        return self.get_item_details(item_name)
+        return self.get_item_details(item.name)
 
     def get_item_persistence(
         self, item_name: str, starttime: str = None, endtime: str = None
