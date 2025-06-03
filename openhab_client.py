@@ -796,6 +796,17 @@ class OpenHABClient:
             if e.response.status_code == 404:
                 return None
             raise
+    
+    def delete_tag(self, tag_uid: str) -> bool:
+        """
+        Delete a tag by uid
+
+        Args:
+            tag_uid: UID of the tag to delete
+        """
+        response = self.session.delete(f"{self.base_url}/rest/tags/{tag_uid}")
+        response.raise_for_status()
+        return True
 
     def list_links(
         self,
