@@ -17,7 +17,7 @@ class CustomBaseModel(BaseModel):
 
 
 class Item(CustomBaseModel):
-    type: str
+    type: Optional[str] = None
     name: str = Field(frozen=True)
     state: Optional[str] = None
     transformedState: Optional[str] = None
