@@ -111,6 +111,11 @@ def list_items(
         examples=["Switch", "Group", "String"],
         default=None,
     ),
+    filter_name: Optional[str] = Field(
+        description="Optional filter items by name. All items that contain the filter value in their name are returned",
+        examples=["Kitchen", "LivingRoom", "Bedroom"],
+        default=None,
+    ),
 ) -> PaginatedItems:
     """
     Gives a list of openHAB items with only basic information. Use this tool
@@ -122,6 +127,9 @@ def list_items(
         page_size: Number of elements per page (default: 50)
         sort_by: Field to sort by (e.g., "name", "label") (default: "name")
         sort_order: Sort order ("asc" or "desc") (default: "asc")
+        filter_tag: Optional filter items by tag name. All available tags can be retrieved from the `list_tags` tool
+        filter_type: Optional filter items by type
+        filter_name: Optional filter items by name. All items that contain the filter value in their name are returned
     """
     return openhab_client.list_items(
         page=page,
@@ -130,6 +138,7 @@ def list_items(
         sort_order=sort_order,
         filter_tag=filter_tag,
         filter_type=filter_type,
+        filter_name=filter_name,
     )
 
 

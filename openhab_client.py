@@ -59,6 +59,7 @@ class OpenHABClient:
         sort_order: str = "asc",
         filter_tag: Optional[str] = None,
         filter_type: Optional[str] = None,
+        filter_name: Optional[str] = None,
     ) -> PaginatedItems:
         """
         List items with pagination
@@ -68,6 +69,9 @@ class OpenHABClient:
             page_size: Number of items per page
             sort_by: Field to sort by (e.g., "label", "thingTypeUID")
             sort_order: Sort order ("asc" or "desc")
+            filter_tag: Optional filter items by tag name
+            filter_type: Optional filter items by type
+            filter_name: Optional filter items by name
 
         Returns:
             PaginatedItems object containing the paginated results and pagination info
@@ -84,6 +88,7 @@ class OpenHABClient:
 
         # Convert to Item objects
         items = [Item(**item) for item in response.json()]
+        items = [item for item in items if filter_name is None or filter_name.lower() in item.name.lower()]
 
         # Sort the items
         reverse_sort = sort_order.lower() == "desc"
