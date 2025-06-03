@@ -135,7 +135,7 @@ class RuleDetails(Rule):
 class Tag(CustomBaseModel):
     uid: str = Field(frozen=True)
     name: str
-    label: Optional[str] = None
+    label: str
     description: Optional[str] = None
     synonyms: List[str] = []
     editable: bool = True
