@@ -141,7 +141,7 @@ def list_items(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -166,7 +166,7 @@ def get_item_details(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -183,7 +183,7 @@ def create_item_metadata(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -201,7 +201,7 @@ def update_item_metadata(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -216,7 +216,7 @@ def create_item(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -237,7 +237,7 @@ def update_item(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -252,7 +252,7 @@ def delete_item(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -277,7 +277,7 @@ def update_item_state(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -308,7 +308,7 @@ def get_item_persistence(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -345,7 +345,7 @@ def list_locations(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -381,7 +381,7 @@ def list_things(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -402,7 +402,7 @@ def get_thing_details(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -422,7 +422,7 @@ def create_thing(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -442,7 +442,7 @@ def update_thing(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -462,7 +462,7 @@ def delete_thing(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -505,7 +505,7 @@ def list_rules(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -526,7 +526,7 @@ def get_rule_details(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -561,7 +561,7 @@ def list_scripts(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -581,7 +581,7 @@ def get_script_details(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -605,7 +605,7 @@ def update_rule(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -633,7 +633,7 @@ def update_rule_script_action(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -652,7 +652,7 @@ def create_rule(rule: RuleDetails = Field(description="Rule to create")) -> Rule
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -670,7 +670,7 @@ def delete_rule(rule_uid: str = Field(description="UID of the rule to delete")) 
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -694,7 +694,7 @@ def create_script(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -718,7 +718,7 @@ def update_script(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -738,7 +738,7 @@ def delete_script(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -756,7 +756,7 @@ def run_rule_now(rule_uid: str = Field(description="UID of the rule to run")) ->
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -779,7 +779,7 @@ def list_tags(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -799,7 +799,7 @@ def get_tag(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -819,7 +819,7 @@ def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
     return created_tag
@@ -839,7 +839,7 @@ def delete_tag(tag_uid: str = Field(description="UID of the tag to delete")) -> 
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
     return True
@@ -874,7 +874,7 @@ def list_links(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
     return links
@@ -898,7 +898,7 @@ def get_link(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
     return link
@@ -918,7 +918,7 @@ def create_link(link: Link = Field(description="Link to create")) -> Link:
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
     return created_link
@@ -942,7 +942,7 @@ def delete_link(
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
 
@@ -960,7 +960,7 @@ def update_link(link: Link = Field(description="Link to update")) -> Link:
         return {
             "isError": True,
             "content": [
-                TextContent(type="Error description", text=str(e))
+                TextContent(type="text", text=str(e))
             ]
         }
     return updated_link
