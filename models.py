@@ -133,9 +133,9 @@ class RuleDetails(Rule):
     configDescriptions: List[Dict[str, Any]] = Field(default_factory=list)
 
 class Tag(CustomBaseModel):
-    uid: str
-    name: str
-    label: str
+    uid: Optional[str] = None
+    name: Optional[str] = None
+    label: Optional[str] = None
     description: Optional[str] = None
     synonyms: List[str] = []
     editable: bool = True

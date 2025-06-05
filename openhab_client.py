@@ -290,8 +290,8 @@ class OpenHABClient:
         in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
         """
 
-        if item_name is None:
-            return None
+        if not item_name:
+            raise ValueError("Item name must be provided")
 
         params = {}
         if starttime:

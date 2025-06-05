@@ -9,17 +9,17 @@ connects to a real openHAB instance via its REST API.
 import os
 import sys
 import logging
-from typing import Callable, Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
-from pydantic import ValidationError
+from pydantic import Field
 
 # Configure logging to suppress INFO messages
 logging.basicConfig(level=logging.DEBUG)
 
 # Import the MCP server implementation
 from mcp.server import FastMCP
+from mcp.types import TextContent
 
 # Import our modules
 from models import (
@@ -39,29 +39,7 @@ from models import (
 )
 from openhab_client import OpenHABClient
 
-from functools import wraps
-import json
-
-mcp = FastMCP(name="CustomMCPServer")
-
-def custom_error_handler(func: Callable) -> Callable:
-    @wraps(func)
-    def wrapper(*args, **kwargs) -> Any:
-        try:
-            return func(*args, **kwargs)
-        except ValidationError as e:
-            errors: List[Dict[str, Any]] = []
-            for err in e.errors():
-                error_detail = {
-                    "code": err.get("type", "validation_error"),
-                    "expected": "valid value",
-                    "received": str(err.get("input", "")),
-                    "path": list(err.get("loc", [])),
-                    "message": err.get("msg", "")
-                }
-                errors.append(error_detail)
-            return json.dumps(errors)
-    return wrapper
+mcp = FastMCP(name="OpenHAB MCP Server")
 
 # Load environment variables from .env file
 env_file = Path(".env")
@@ -104,11 +82,6 @@ openhab_client = OpenHABClient(
     password=OPENHAB_PASSWORD,
     generate_uids=OPENHAB_GENERATE_UIDS,
 )
-
-
-def __validate_model(model: BaseModel):
-    if len(model.model_extra) > 0:
-        raise ValueError("Unsupported fields: " + ", ".join(model.model_extra.keys()))
 
 
 @mcp.tool()
@@ -154,16 +127,23 @@ def list_items(
         filter_type: Optional filter items by type
         filter_name: Optional filter items by name. All items that contain the filter value in their name are returned
     """
-    return openhab_client.list_items(
-        page=page,
-        page_size=page_size,
-        sort_by=sort_by,
-        sort_order=sort_order,
-        filter_tag=filter_tag,
-        filter_type=filter_type,
-        filter_name=filter_name,
-    )
-
+    try:
+        return openhab_client.list_items(
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filter_tag=filter_tag,
+            filter_type=filter_type,
+            filter_name=filter_name,
+        )
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def get_item_details(
@@ -180,9 +160,15 @@ def get_item_details(
     Args:
         item_name: Name of the item to get details for
     """
-    item = openhab_client.get_item_details(item_name)
-    return item
-
+    try:
+        return openhab_client.get_item_details(item_name)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def create_item_metadata(
@@ -191,8 +177,15 @@ def create_item_metadata(
     metadata: ItemMetadata = Field(description="Metadata to create"),
 ) -> ItemDetails:
     """Create new metadata for a specific openHAB item"""
-    __validate_model(metadata)
-    return openhab_client.create_item_metadata(item_name, namespace, metadata)
+    try:
+        return openhab_client.create_item_metadata(item_name, namespace, metadata)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 
 @mcp.tool()
@@ -202,18 +195,30 @@ def update_item_metadata(
     metadata: ItemMetadata = Field(description="Metadata to update"),
 ) -> ItemDetails:
     """Update metadata for a specific openHAB item"""
-    __validate_model(metadata)
-    return openhab_client.update_item_metadata(item_name, namespace, metadata)
-
+    try:
+        return openhab_client.update_item_metadata(item_name, namespace, metadata)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def create_item(
     item: ItemDetails = Field(description="Item details to create"),
 ) -> ItemDetails:
     """Create a new openHAB item"""
-    __validate_model(item)
-    created_item = openhab_client.create_item(item)
-    return created_item
+    try:
+        return openhab_client.create_item(item)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 
 @mcp.tool()
@@ -226,18 +231,30 @@ def update_item(
     Args:
         item: Item details to update
     """
-    __validate_model(item)
-    updated_item = openhab_client.update_item(item)
-    return updated_item
-
+    try:
+        return openhab_client.update_item(item)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def delete_item(
     item_name: str = Field(description="Name of the item to delete"),
 ) -> bool:
     """Delete an openHAB item"""
-    return openhab_client.delete_item(item_name)
-
+    try:
+        return openhab_client.delete_item(item_name)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def update_item_state(
@@ -254,9 +271,15 @@ def update_item_state(
         item_name: Name of the item to update state for
         state: State to update. Allowed states depend on the item type
     """
-    updated_item = openhab_client.update_item_state(item_name, state)
-    return updated_item
-
+    try:
+        return openhab_client.update_item_state(item_name, state)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def get_item_persistence(
@@ -279,9 +302,15 @@ def get_item_persistence(
         start: Start time in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
         end: End time in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
     """
-    persistence = openhab_client.get_item_persistence(item_name, start, end)
-    return persistence
-
+    try:
+        return openhab_client.get_item_persistence(item_name, start, end)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def list_locations(
@@ -308,10 +337,17 @@ def list_locations(
         sort_by: Field to sort by (e.g., "name", "label") (default: "name")
         sort_order: Sort order ("asc" or "desc") (default: "asc")
     """
-    locations = openhab_client.list_locations(
-        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
-    )
-    return locations
+    try:
+        return openhab_client.list_locations(
+            page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
+        )
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def list_things(
@@ -337,10 +373,17 @@ def list_things(
         sort_by: Field to sort by (e.g., "UID", "label") (default: "UID")
         sort_order: Sort order ("asc" or "desc") (default: "asc")
     """
-    return openhab_client.list_things(
-        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
-    )
-
+    try:
+        return openhab_client.list_things(
+            page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
+        )
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def get_thing_details(
@@ -353,9 +396,15 @@ def get_thing_details(
     Args:
         thing_uid: UID of the thing to get details for
     """
-    thing_details = openhab_client.get_thing_details(thing_uid)
-    return thing_details
-
+    try:
+        return openhab_client.get_thing_details(thing_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def create_thing(
@@ -367,10 +416,15 @@ def create_thing(
     Args:
         thing: Thing to create
     """
-    __validate_model(thing)
-    created_thing = openhab_client.create_thing(thing)
-    return created_thing
-
+    try:
+        return openhab_client.create_thing(thing)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def update_thing(
@@ -382,10 +436,15 @@ def update_thing(
     Args:
         thing: Thing to update
     """
-    __validate_model(thing)
-    updated_thing = openhab_client.update_thing(thing)
-    return updated_thing
-
+    try:
+        return openhab_client.update_thing(thing)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def delete_thing(
@@ -397,8 +456,15 @@ def delete_thing(
     Args:
         thing_uid: UID of the thing to delete
     """
-    return openhab_client.delete_thing(thing_uid)
-
+    try:
+        return openhab_client.delete_thing(thing_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def list_rules(
@@ -427,13 +493,21 @@ def list_rules(
         sort_order: Sort order ("asc" or "desc") (default: "asc")
         filter_tag: Filter rules by tag (default: None)
     """
-    return openhab_client.list_rules(
-        page=page,
-        page_size=page_size,
-        sort_by=sort_by,
-        sort_order=sort_order,
-        filter_tag=filter_tag,
-    )
+    try:
+        return openhab_client.list_rules(
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filter_tag=filter_tag,
+        )
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 
 @mcp.tool()
@@ -446,9 +520,15 @@ def get_rule_details(
     Args:
         rule_uid: UID of the rule to get details for
     """
-    rule_details = openhab_client.get_rule_details(rule_uid)
-    return rule_details
-
+    try:
+        return openhab_client.get_rule_details(rule_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def list_scripts(
@@ -473,10 +553,17 @@ def list_scripts(
         sort_by: Field to sort by (e.g., "UID", "label") (default: "UID")
         sort_order: Sort order ("asc" or "desc") (default: "asc")
     """
-    return openhab_client.list_scripts(
-        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
-    )
-
+    try:
+        return openhab_client.list_scripts(
+            page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
+        )
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def get_script_details(
@@ -488,9 +575,15 @@ def get_script_details(
     Args:
         script_id: ID of the script to get details for
     """
-    script_details = openhab_client.get_script_details(script_id)
-    return script_details
-
+    try:
+        return openhab_client.get_script_details(script_id)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def update_rule(
@@ -506,9 +599,15 @@ def update_rule(
         rule_uid: UID of the rule to update
         rule_updates: Partial updates to apply to the rule
     """
-    updated_rule = openhab_client.update_rule(rule_uid, rule_updates)
-    return updated_rule
-
+    try:
+        return openhab_client.update_rule(rule_uid, rule_updates)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def update_rule_script_action(
@@ -526,10 +625,17 @@ def update_rule_script_action(
         script_type: Type of the script
         script_content: Content of the script
     """
-    updated_rule = openhab_client.update_rule_script_action(
-        rule_uid, action_id, script_type, script_content
-    )
-    return updated_rule
+    try:
+        return openhab_client.update_rule_script_action(
+            rule_uid, action_id, script_type, script_content
+        )
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 
 @mcp.tool()
@@ -540,10 +646,15 @@ def create_rule(rule: RuleDetails = Field(description="Rule to create")) -> Rule
     Args:
         rule: Rule to create
     """
-    __validate_model(rule)
-    created_rule = openhab_client.create_rule(rule)
-    return created_rule
-
+    try:
+        return openhab_client.create_rule(rule)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def delete_rule(rule_uid: str = Field(description="UID of the rule to delete")) -> bool:
@@ -553,8 +664,15 @@ def delete_rule(rule_uid: str = Field(description="UID of the rule to delete")) 
     Args:
         rule_uid: UID of the rule to delete
     """
-    return openhab_client.delete_rule(rule_uid)
-
+    try:
+        return openhab_client.delete_rule(rule_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def create_script(
@@ -570,9 +688,15 @@ def create_script(
         script_type: Type of the script
         content: Content of the script
     """
-    created_script = openhab_client.create_script(script_id, script_type, content)
-    return created_script
-
+    try:
+        return openhab_client.create_script(script_id, script_type, content)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def update_script(
@@ -588,9 +712,15 @@ def update_script(
         script_type: Type of the script
         content: Content of the script
     """
-    updated_script = openhab_client.update_script(script_id, script_type, content)
-    return updated_script
-
+    try:
+        return openhab_client.update_script(script_id, script_type, content)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def delete_script(
@@ -602,8 +732,15 @@ def delete_script(
     Args:
         script_id: ID of the script to delete
     """
-    return openhab_client.delete_script(script_id)
-
+    try:
+        return openhab_client.delete_script(script_id)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def run_rule_now(rule_uid: str = Field(description="UID of the rule to run")) -> bool:
@@ -613,13 +750,21 @@ def run_rule_now(rule_uid: str = Field(description="UID of the rule to run")) ->
     Args:
         rule_uid: UID of the rule to run
     """
-    return openhab_client.run_rule_now(rule_uid)
-
+    try:
+        return openhab_client.run_rule_now(rule_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def list_tags(
     parent_tag_uid: Optional[str] = Field(
-        description="UID of the parent tag to filter by"
+        description="UID of the parent tag to filter by",
+        default=None,
     ),
 ) -> List[Tag]:
     """
@@ -628,9 +773,15 @@ def list_tags(
     Args:
         parent_tag_uid: UID of the parent tag to filter by
     """
-    tags = openhab_client.list_tags(parent_tag_uid)
-    return tags
-
+    try:
+        return openhab_client.list_tags(parent_tag_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def get_tag(
@@ -642,12 +793,17 @@ def get_tag(
     Args:
         tag_uid: UID of the tag to get details for
     """
-    tag = openhab_client.get_tag(tag_uid)
-    return tag
-
+    try:
+        return openhab_client.get_tag(tag_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
-@custom_error_handler
 def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
     """
     Create a new openHAB tag.
@@ -657,8 +813,15 @@ def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
     Args:
         tag: Tag to create
     """
-    __validate_model(tag)
-    created_tag = openhab_client.create_tag(tag)
+    try:
+        created_tag = openhab_client.create_tag(tag)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
     return created_tag
 
 
@@ -670,7 +833,16 @@ def delete_tag(tag_uid: str = Field(description="UID of the tag to delete")) -> 
     Args:
         tag_uid: UID of the tag to delete
     """
-    return openhab_client.delete_tag(tag_uid)
+    try:
+        openhab_client.delete_tag(tag_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
+    return True
 
 
 @mcp.tool()
@@ -696,7 +868,15 @@ def list_links(
         sort_order: Sort order ("asc" or "desc") (default: "asc")
         item_name: Optional filter links by item name (default: None)
     """
-    links = openhab_client.list_links(page, page_size, sort_order, item_name)
+    try:
+        links = openhab_client.list_links(page, page_size, sort_order, item_name)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
     return links
 
 
@@ -712,7 +892,15 @@ def get_link(
         item_name: Name of the item to get link for
         channel_uid: UID of the channel to get link for
     """
-    link = openhab_client.get_link(item_name, channel_uid)
+    try:
+        link = openhab_client.get_link(item_name, channel_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
     return link
 
 
@@ -724,8 +912,15 @@ def create_link(link: Link = Field(description="Link to create")) -> Link:
     Args:
         link: Link to create
     """
-    __validate_model(link)
-    created_link = openhab_client.create_link(link)
+    try:
+        created_link = openhab_client.create_link(link)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
     return created_link
 
 
@@ -741,7 +936,15 @@ def delete_link(
         item_name: Name of the item to delete link for
         channel_uid: UID of the channel to delete link for
     """
-    return openhab_client.delete_link(item_name, channel_uid)
+    try:
+        return openhab_client.delete_link(item_name, channel_uid)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
 
 @mcp.tool()
 def update_link(link: Link = Field(description="Link to update")) -> Link:
@@ -751,8 +954,15 @@ def update_link(link: Link = Field(description="Link to update")) -> Link:
     Args:
         link: Link to update
     """
-    __validate_model(link)
-    updated_link = openhab_client.update_link(link)
+    try:
+        updated_link = openhab_client.update_link(link)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "content": [
+                TextContent(text=str(e))
+            ]
+        }
     return updated_link
 
 
