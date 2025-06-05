@@ -9,10 +9,12 @@ connects to a real openHAB instance via its REST API.
 import os
 import sys
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional, Any
 from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+from pydantic import ValidationError
+import json
 
 # Configure logging to suppress INFO messages
 logging.basicConfig(level=logging.DEBUG)
@@ -39,6 +41,26 @@ from models import (
     ItemPersistence,
 )
 from openhab_client import OpenHABClient
+
+def custom_error_handler(func: Callable) -> Callable:
+    def wrapper(*args, **kwargs) -> Any:
+        try:
+            return func(*args, **kwargs)
+        except ValidationError as e:
+            # Transform Pydantic errors to the expected format
+            errors: List[Dict[str, Any]] = []
+            for err in e.errors():
+                error_detail = {
+                    "code": err.get("type", "validation_error"),
+                    "expected": "valid value",
+                    "received": str(err.get("input", "")),
+                    "path": list(err.get("loc", [])),
+                    "message": err.get("msg", "")
+                }
+                errors.append(error_detail)
+            # Return the errors as a JSON-formatted string
+            return json.dumps(errors)
+    return wrapper
 
 # Load environment variables from .env file
 env_file = Path(".env")
@@ -89,6 +111,7 @@ def __validate_model(model: BaseModel):
 
 
 @mcp.tool()
+@custom_error_handler
 def list_items(
     page: int = Field(
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
@@ -143,6 +166,7 @@ def list_items(
 
 
 @mcp.tool()
+@custom_error_handler
 def get_item_details(
     item_name: str = Field(description="Name of the item to get details for"),
 ) -> Optional[ItemDetails]:
@@ -162,6 +186,7 @@ def get_item_details(
 
 
 @mcp.tool()
+@custom_error_handler
 def create_item_metadata(
     item_name: str = Field(description="Name of the item to create metadata for"),
     namespace: str = Field(description="Namespace of the metadata"),
@@ -173,6 +198,7 @@ def create_item_metadata(
 
 
 @mcp.tool()
+@custom_error_handler
 def update_item_metadata(
     item_name: str = Field(description="Name of the item to update metadata for"),
     namespace: str = Field(description="Namespace of the metadata"),
@@ -184,6 +210,7 @@ def update_item_metadata(
 
 
 @mcp.tool()
+@custom_error_handler
 def create_item(
     item: ItemDetails = Field(description="Item details to create"),
 ) -> ItemDetails:
@@ -194,6 +221,7 @@ def create_item(
 
 
 @mcp.tool()
+@custom_error_handler
 def update_item(
     item: ItemDetails = Field(description="Item details to update"),
 ) -> ItemDetails:
@@ -209,6 +237,7 @@ def update_item(
 
 
 @mcp.tool()
+@custom_error_handler
 def delete_item(
     item_name: str = Field(description="Name of the item to delete"),
 ) -> bool:
@@ -217,6 +246,7 @@ def delete_item(
 
 
 @mcp.tool()
+@custom_error_handler
 def update_item_state(
     item_name: str = Field(description="Name of the item to update state for"),
     state: str = Field(
@@ -236,6 +266,7 @@ def update_item_state(
 
 
 @mcp.tool()
+@custom_error_handler
 def get_item_persistence(
     item_name: str = Field(description="Name of the item to get persistence for"),
     start: str = Field(
@@ -261,6 +292,7 @@ def get_item_persistence(
 
 
 @mcp.tool()
+@custom_error_handler
 def list_locations(
     page: int = Field(
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
@@ -291,6 +323,7 @@ def list_locations(
     return locations
 
 @mcp.tool()
+@custom_error_handler
 def list_things(
     page: int = Field(
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
@@ -320,6 +353,7 @@ def list_things(
 
 
 @mcp.tool()
+@custom_error_handler
 def get_thing_details(
     thing_uid: str = Field(description="UID of the thing to get details for"),
 ) -> Optional[ThingDetails]:
@@ -335,6 +369,7 @@ def get_thing_details(
 
 
 @mcp.tool()
+@custom_error_handler
 def create_thing(
     thing: Thing = Field(description="Thing to create"),
 ) -> Optional[ThingDetails]:
@@ -350,6 +385,7 @@ def create_thing(
 
 
 @mcp.tool()
+@custom_error_handler
 def update_thing(
     thing: Thing = Field(description="Thing to update"),
 ) -> Optional[ThingDetails]:
@@ -365,6 +401,7 @@ def update_thing(
 
 
 @mcp.tool()
+@custom_error_handler
 def delete_thing(
     thing_uid: str = Field(description="UID of the thing to delete"),
 ) -> bool:
@@ -378,6 +415,7 @@ def delete_thing(
 
 
 @mcp.tool()
+@custom_error_handler
 def list_rules(
     page: int = Field(
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
@@ -414,6 +452,7 @@ def list_rules(
 
 
 @mcp.tool()
+@custom_error_handler
 def get_rule_details(
     rule_uid: str = Field(description="UID of the rule to get details for"),
 ) -> Optional[RuleDetails]:
@@ -428,6 +467,7 @@ def get_rule_details(
 
 
 @mcp.tool()
+@custom_error_handler
 def list_scripts(
     page: int = Field(
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
@@ -456,6 +496,7 @@ def list_scripts(
 
 
 @mcp.tool()
+@custom_error_handler
 def get_script_details(
     script_id: str = Field(description="ID of the script to get details for"),
 ) -> Optional[RuleDetails]:
@@ -470,6 +511,7 @@ def get_script_details(
 
 
 @mcp.tool()
+@custom_error_handler
 def update_rule(
     rule_uid: str = Field(description="UID of the rule to update"),
     rule_updates: Dict[str, Any] = Field(
@@ -488,6 +530,7 @@ def update_rule(
 
 
 @mcp.tool()
+@custom_error_handler
 def update_rule_script_action(
     rule_uid: str = Field(description="UID of the rule to update"),
     action_id: str = Field(description="ID of the action to update"),
@@ -510,6 +553,7 @@ def update_rule_script_action(
 
 
 @mcp.tool()
+@custom_error_handler
 def create_rule(rule: RuleDetails = Field(description="Rule to create")) -> RuleDetails:
     """
     Create a new openHAB rule.
@@ -523,6 +567,7 @@ def create_rule(rule: RuleDetails = Field(description="Rule to create")) -> Rule
 
 
 @mcp.tool()
+@custom_error_handler
 def delete_rule(rule_uid: str = Field(description="UID of the rule to delete")) -> bool:
     """
     Delete an openHAB rule.
@@ -534,6 +579,7 @@ def delete_rule(rule_uid: str = Field(description="UID of the rule to delete")) 
 
 
 @mcp.tool()
+@custom_error_handler
 def create_script(
     script_id: str = Field(description="ID of the script to create"),
     script_type: str = Field(description="Type of the script"),
@@ -552,6 +598,7 @@ def create_script(
 
 
 @mcp.tool()
+@custom_error_handler
 def update_script(
     script_id: str = Field(description="ID of the script to update"),
     script_type: str = Field(description="Type of the script"),
@@ -570,6 +617,7 @@ def update_script(
 
 
 @mcp.tool()
+@custom_error_handler
 def delete_script(
     script_id: str = Field(description="ID of the script to delete"),
 ) -> bool:
@@ -583,6 +631,7 @@ def delete_script(
 
 
 @mcp.tool()
+@custom_error_handler
 def run_rule_now(rule_uid: str = Field(description="UID of the rule to run")) -> bool:
     """
     Run an openHAB rule immediately.
@@ -594,6 +643,7 @@ def run_rule_now(rule_uid: str = Field(description="UID of the rule to run")) ->
 
 
 @mcp.tool()
+@custom_error_handler
 def list_tags(
     parent_tag_uid: Optional[str] = Field(
         description="UID of the parent tag to filter by"
@@ -610,6 +660,7 @@ def list_tags(
 
 
 @mcp.tool()
+@custom_error_handler
 def get_tag(
     tag_uid: str = Field(description="UID of the tag to get details for"),
 ) -> Optional[Tag]:
@@ -624,6 +675,7 @@ def get_tag(
 
 
 @mcp.tool()
+@custom_error_handler
 def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
     """
     Create a new openHAB tag.
@@ -639,6 +691,7 @@ def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
 
 
 @mcp.tool()
+@custom_error_handler
 def delete_tag(tag_uid: str = Field(description="UID of the tag to delete")) -> bool:
     """
     Delete an openHAB tag.
@@ -650,6 +703,7 @@ def delete_tag(tag_uid: str = Field(description="UID of the tag to delete")) -> 
 
 
 @mcp.tool()
+@custom_error_handler
 def list_links(
     page: int = Field(
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
@@ -677,6 +731,7 @@ def list_links(
 
 
 @mcp.tool()
+@custom_error_handler
 def get_link(
     item_name: str = Field(description="Name of the item to get link for"),
     channel_uid: str = Field(description="UID of the channel to get link for"),
@@ -693,6 +748,7 @@ def get_link(
 
 
 @mcp.tool()
+@custom_error_handler
 def create_link(link: Link = Field(description="Link to create")) -> Link:
     """
     Create a new openHAB item to thing link.
@@ -706,6 +762,7 @@ def create_link(link: Link = Field(description="Link to create")) -> Link:
 
 
 @mcp.tool()
+@custom_error_handler
 def delete_link(
     item_name: str = Field(description="Name of the item to delete link for"),
     channel_uid: str = Field(description="UID of the channel to delete link for"),
@@ -721,6 +778,7 @@ def delete_link(
 
 
 @mcp.tool()
+@custom_error_handler
 def update_link(link: Link = Field(description="Link to update")) -> Link:
     """
     Update an existing openHAB item to thing link.
