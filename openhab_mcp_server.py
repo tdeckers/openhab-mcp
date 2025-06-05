@@ -9,10 +9,11 @@ connects to a real openHAB instance via its REST API.
 import os
 import sys
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional, Any
 from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+from pydantic import ValidationError
 
 # Configure logging to suppress INFO messages
 logging.basicConfig(level=logging.DEBUG)
@@ -37,6 +38,30 @@ from models import (
     ItemPersistence,
 )
 from openhab_client import OpenHABClient
+
+from functools import wraps
+import json
+
+mcp = FastMCP(name="CustomMCPServer")
+
+def custom_error_handler(func: Callable) -> Callable:
+    @wraps(func)
+    def wrapper(*args, **kwargs) -> Any:
+        try:
+            return func(*args, **kwargs)
+        except ValidationError as e:
+            errors: List[Dict[str, Any]] = []
+            for err in e.errors():
+                error_detail = {
+                    "code": err.get("type", "validation_error"),
+                    "expected": "valid value",
+                    "received": str(err.get("input", "")),
+                    "path": list(err.get("loc", [])),
+                    "message": err.get("msg", "")
+                }
+                errors.append(error_detail)
+            return json.dumps(errors)
+    return wrapper
 
 # Load environment variables from .env file
 env_file = Path(".env")
@@ -622,6 +647,7 @@ def get_tag(
 
 
 @mcp.tool()
+@custom_error_handler
 def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
     """
     Create a new openHAB tag.
