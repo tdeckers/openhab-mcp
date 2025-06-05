@@ -42,23 +42,23 @@ from models import (
 )
 from openhab_client import OpenHABClient
 
+from functools import wraps
+
 def custom_error_handler(func: Callable) -> Callable:
+    @wraps(func)
     def wrapper(*args, **kwargs) -> Any:
         try:
             return func(*args, **kwargs)
         except ValidationError as e:
-            # Transform Pydantic errors to the expected format
             errors: List[Dict[str, Any]] = []
             for err in e.errors():
-                error_detail = {
+                errors.append({
                     "code": err.get("type", "validation_error"),
                     "expected": "valid value",
                     "received": str(err.get("input", "")),
                     "path": list(err.get("loc", [])),
                     "message": err.get("msg", "")
-                }
-                errors.append(error_detail)
-            # Return the errors as a JSON-formatted string
+                })
             return json.dumps(errors)
     return wrapper
 
@@ -81,9 +81,9 @@ OPENHAB_GENERATE_UIDS = os.environ.get("OPENHAB_GENERATE_UIDS", "false").lower()
 OPENHAB_MCP_TRANSPORT = os.environ.get("OPENHAB_MCP_TRANSPORT", "stdio")
 
 if OPENHAB_MCP_TRANSPORT == "streamable-http":
-    mcp = FastMCP("OpenHAB MCP Server", stateless_http=True, custom_error_handler=custom_error_handler)
+    mcp = FastMCP("OpenHAB MCP Server", stateless_http=True)
 else:
-    mcp = FastMCP("OpenHAB MCP Server", custom_error_handler=custom_error_handler)
+    mcp = FastMCP("OpenHAB MCP Server")
 
 if not OPENHAB_API_TOKEN and not (OPENHAB_USERNAME and OPENHAB_PASSWORD):
     print(
@@ -646,6 +646,7 @@ def get_tag(
 
 
 @mcp.tool()
+@custom_error_handler
 def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
     """
     Create a new openHAB tag.
