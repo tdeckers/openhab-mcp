@@ -17,23 +17,26 @@ class ErrorValue(BaseModel):
 
 class CustomBaseModel(BaseModel):
     model_config = ConfigDict(extra="allow")
-
-    def additional_model_validations(self) -> Self:
+    
+    def after_model_validations(self) -> Self:
         return self
 
     @model_validator(mode="wrap")
     @classmethod
     def handle_error_gracefully(cls, data: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
         try:
+            if hasattr(cls, 'prepare_data'):
+                data = cls.prepare_data(data)
             model = handler(data)
-            model.additional_model_validations()
+            model.after_model_validations()
             return model
         except (ValidationError, ValueError) as err:
             return ErrorModel(classname=cls.__name__, message=str(err))
 
     @override
     def model_dump(self, **kwargs):
-        kwargs["exclude"] = kwargs.get("exclude", []) + list(self.model_extra.keys())
+        if hasattr(self, 'model_extra') and self.model_extra:
+            kwargs["exclude"] = kwargs.get("exclude", []) + list(self.model_extra.keys())
         return super().model_dump(**kwargs)
 
     def raise_for_errors(self):
@@ -116,7 +119,7 @@ class Item(CustomBaseModel):
         return f"get_item_details(name='{self.name}')"
 
     @override
-    def additional_model_validations(self) -> Self:
+    def after_model_validations(self) -> Self:
         if isinstance(self, Item):
             if not self.has_details:
                 raise ValueError("Every Item must have 'has_details' set to True.")
@@ -227,33 +230,33 @@ class RuleDetails(Rule):
 
 class Tag(CustomBaseModel):
     uid: Annotated[str, Field(required=False), WrapValidator(handle_error_gracefully)]
-    parentuid: Annotated[str, Field(required=False), WrapValidator(handle_error_gracefully)]
+    parentuid: Annotated[str, Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
     name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
     label: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
     description: Annotated[Optional[str], Field(default=None), WrapValidator(handle_error_gracefully)]
     synonyms: Annotated[List[str], Field(default=[]), WrapValidator(handle_error_gracefully)]
     editable: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
 
-    @model_validator(mode='before')
     @classmethod
-    def uid_mapping(cls, data: Any) -> Any:
+    def prepare_data(cls, data: Any) -> Any:
         if isinstance(data, dict):
             if data.get('parentuid') and data.get('name') and not data.get('uid'):
                 data.update({'uid': data['parentuid'] + '_' + data['name']})
             elif data.get('uid') and not data.get('parentuid'):
-                match = re.match(r".*(?=_)", data['uid'])
-                if match:
-                    parentuid = match.group()
-                    data.update({'parentuid': parentuid})
+                if '_' in data['uid']:
+                    match = re.match(r".*(?=_)", data['uid'])
+                    if match:
+                        parentuid = match.group()
+                        data.update({'parentuid': parentuid})
         return data
 
     @override
-    def additional_model_validations(self) -> Self:
-        if not self.parentuid.startswith(('Equipment', 'Point', 'Location', 'Property')):
+    def after_model_validations(self) -> Self:
+        if self.parentuid and not self.parentuid.startswith(('Equipment', 'Point', 'Location', 'Property')):
             raise ValueError("Tag 'parentuid' must start with the literal 'Equipment', 'Point', 'Location', or 'Property'.")
-        if self.parentuid.endswith('_'):
+        if self.parentuid and self.parentuid.endswith('_'):
             raise ValueError("Tag 'parentuid' must not end with '_'.")
-        if self.parentuid + "_" + self.name != self.uid:
+        if self.parentuid and self.parentuid + "_" + self.name != self.uid:
             raise ValueError("Tag 'uid' must be a concatenation of 'parentuid' and 'name' separated by an underscore.")
         return self
 
