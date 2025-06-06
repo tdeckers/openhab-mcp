@@ -17,12 +17,17 @@ class ErrorValue(BaseModel):
 class CustomBaseModel(BaseModel):
     model_config = ConfigDict(extra='allow')
 
+    def additional_model_validations(self) -> Self:
+        return self
+
     @model_validator(mode="wrap")
     @classmethod
     def handle_error_gracefully(cls, data: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
         try:
-            return handler(data)
-        except ValidationError as err:
+            model = handler(data)
+            model.additional_model_validations()
+            return model
+        except (ValidationError, ValueError) as err:
             return ErrorModel(classname=cls.__name__, message=str(err))
 
     @override
@@ -217,7 +222,13 @@ class Tag(CustomBaseModel):
     description: Annotated[Optional[str], Field(default=None), WrapValidator(handle_error_gracefully)]
     synonyms: Annotated[List[str], Field(default=[]), WrapValidator(handle_error_gracefully)]
     editable: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
-    
+
+    @override
+    def additional_model_validations(self) -> Self:
+        if not self.uid.endswith(self.name):
+            raise ValueError("UID should end with `name`.")
+        return self
+
 class Link(CustomBaseModel):
     itemName: str
     channelUID: str
