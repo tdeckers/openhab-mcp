@@ -749,7 +749,7 @@ class OpenHABClient:
         tags = [Tag(**tag) for tag in response.json()]
 
         if parent_tag_uid:
-            tags = [tag for tag in tags if tag.uid.startswith(f"{parent_tag_uid}_")]
+            tags = [tag for tag in tags if tag.uid.lower().startswith(f"{parent_tag_uid.lower()}_")]
 
         return tags
 
