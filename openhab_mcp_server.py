@@ -722,7 +722,6 @@ def update_script(
             ]
         }
 
-@mcp.tool()
 def delete_script(
     script_id: str = Field(description="ID of the script to delete"),
 ) -> bool:
@@ -802,6 +801,15 @@ def get_tag(
                 TextContent(type="text", text=str(e))
             ]
         }
+
+@mcp.tool()
+def get_create_tag_schema() -> dict:
+    """
+    Get the JSON schema for creating a tag.
+    """
+    schema = Tag.model_json_schema()
+    schema["additionalProperties"] = False
+    return schema
 
 @mcp.tool()
 def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
