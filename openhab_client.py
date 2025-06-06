@@ -784,6 +784,9 @@ class OpenHABClient:
 
         tag.raise_for_errors()
 
+        if self.get_tag(tag.uid):
+            raise ValueError(f"Tag with UID '{tag.uid}' already exists")
+
         payload = tag.model_dump()
 
         response = self.session.post(f"{self.base_url}/rest/tags", json=payload)
