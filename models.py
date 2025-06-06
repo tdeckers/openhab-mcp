@@ -1,3 +1,4 @@
+import re
 import typing
 from typing import Dict, List, Optional, Any, NamedTuple, Annotated, Union
 from typing_extensions import override, TypedDict, Self
@@ -15,7 +16,7 @@ class ErrorValue(BaseModel):
     message: str
 
 class CustomBaseModel(BaseModel):
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(extra="allow")
 
     def additional_model_validations(self) -> Self:
         return self
@@ -100,19 +101,28 @@ class ErrorModel(CustomBaseModel):
     message: str
 
 class Item(CustomBaseModel):
-    type: Optional[str] = None
-    name: str
-    state: Optional[str] = None
-    transformedState: Optional[str] = None
-    label: Optional[str] = None
-    category: Optional[str] = None
-    tags: List[str] = []
-    groupNames: List[str] = []
-    has_details: bool = True
+    type: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    state: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
+    transformedState: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
+    label: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
+    category: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
+    tags: Annotated[List[str], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
+    groupNames: Annotated[List[str], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
+    has_details: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
 
     @property
     def get_details(self):
         return f"get_item_details(name='{self.name}')"
+
+    @override
+    def additional_model_validations(self) -> Self:
+        if isinstance(self, Item):
+            if not self.has_details:
+                raise ValueError("Every Item must have 'has_details' set to True.")
+            if self.name and self.name[0].isdigit():
+                raise ValueError("Item 'name' may not start with a digit.")
+        return self
 
 class CommandOptions(TypedDict):
     command: str
@@ -216,18 +226,37 @@ class RuleDetails(Rule):
     configDescriptions: List[Dict[str, Any]] = Field(default_factory=list)
 
 class Tag(CustomBaseModel):
-    uid: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    uid: Annotated[str, Field(required=False), WrapValidator(handle_error_gracefully)]
+    parentuid: Annotated[str, Field(required=False), WrapValidator(handle_error_gracefully)]
     name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
     label: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
     description: Annotated[Optional[str], Field(default=None), WrapValidator(handle_error_gracefully)]
     synonyms: Annotated[List[str], Field(default=[]), WrapValidator(handle_error_gracefully)]
     editable: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
 
+    @model_validator(mode='before')
+    @classmethod
+    def uid_mapping(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get('parentuid') and data.get('name') and not data.get('uid'):
+                data.update({'uid': data['parentuid'] + '_' + data['name']})
+            elif data.get('uid') and not data.get('parentuid'):
+                match = re.match(r".*(?=_)", data['uid'])
+                if match:
+                    parentuid = match.group()
+                    data.update({'parentuid': parentuid})
+        return data
+
     @override
     def additional_model_validations(self) -> Self:
-        if not self.uid.endswith(self.name):
-            raise ValueError("UID should end with `name`.")
+        if not self.parentuid.startswith(('Equipment', 'Point', 'Location', 'Property')):
+            raise ValueError("Tag 'parentuid' must start with the literal 'Equipment', 'Point', 'Location', or 'Property'.")
+        if self.parentuid.endswith('_'):
+            raise ValueError("Tag 'parentuid' must not end with '_'.")
+        if self.parentuid + "_" + self.name != self.uid:
+            raise ValueError("Tag 'uid' must be a concatenation of 'parentuid' and 'name' separated by an underscore.")
         return self
+
 
 class Link(CustomBaseModel):
     itemName: str

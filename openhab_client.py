@@ -129,32 +129,6 @@ class OpenHABClient:
             ),
         )
 
-    def list_locations(
-        self,
-        page: int = 1,
-        page_size: int = 15,
-        sort_by: str = "name",
-        sort_order: str = "asc",
-    ) -> PaginatedItems:
-        """
-        List locations with pagination
-
-        Args:
-            page: 1-based page number
-            page_size: Number of items per page
-            sort_by: Field to sort by (e.g., "name")
-            sort_order: Sort order ("asc" or "desc")
-
-        Returns:
-            PaginatedItems object containing the paginated results and pagination info
-        """
-        # Get all locations
-        locations = self.list_items(
-            page, page_size, sort_by, sort_order, filter_tag="Location"
-        )
-
-        return locations
-
     def get_item_details(
         self, item_name: str
     ) -> Optional[ItemDetails]:
@@ -175,8 +149,8 @@ class OpenHABClient:
 
     def create_item(self, item: ItemDetails) -> ItemDetails:
         """Create a new item"""
-        if not item.name:
-            raise ValueError("Item must have a name")
+
+        item.raise_for_errors()
 
         payload = item.model_dump()
 

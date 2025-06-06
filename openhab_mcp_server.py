@@ -138,12 +138,8 @@ def list_items(
             filter_name=filter_name,
         )
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def get_item_details(
@@ -163,12 +159,16 @@ def get_item_details(
     try:
         return openhab_client.get_item_details(item_name)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
+@mcp.tool()
+def get_itemmetadata_schema() -> dict:
+    """
+    Get the JSON schema for creating item metadata.
+    """
+    schema = ItemMetadata.model_json_schema()
+    schema["additionalProperties"] = False
+    return schema
 
 @mcp.tool()
 def create_item_metadata(
@@ -180,12 +180,7 @@ def create_item_metadata(
     try:
         return openhab_client.create_item_metadata(item_name, namespace, metadata)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
 
 
 @mcp.tool()
@@ -198,12 +193,16 @@ def update_item_metadata(
     try:
         return openhab_client.update_item_metadata(item_name, namespace, metadata)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
+@mcp.tool()
+def get_item_schema() -> dict:
+    """
+    Get the JSON schema for creating an item.
+    """
+    schema = ItemDetails.model_json_schema()
+    schema["additionalProperties"] = False
+    return schema
 
 @mcp.tool()
 def create_item(
@@ -213,12 +212,7 @@ def create_item(
     try:
         return openhab_client.create_item(item)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
 
 
 @mcp.tool()
@@ -234,12 +228,8 @@ def update_item(
     try:
         return openhab_client.update_item(item)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def delete_item(
@@ -249,12 +239,8 @@ def delete_item(
     try:
         return openhab_client.delete_item(item_name)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def update_item_state(
@@ -274,12 +260,8 @@ def update_item_state(
     try:
         return openhab_client.update_item_state(item_name, state)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def get_item_persistence(
@@ -305,49 +287,7 @@ def get_item_persistence(
     try:
         return openhab_client.get_item_persistence(item_name, start, end)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
-
-@mcp.tool()
-def list_locations(
-    page: int = Field(
-        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
-        default=1,
-    ),
-    page_size: int = Field(description="Number of elements per page", default=50),
-    sort_by: str = Field(
-        description="Field to sort by", examples=["name", "label"], default="name"
-    ),
-    sort_order: str = Field(
-        description="Sort order", examples=["asc", "desc"], default="asc"
-    ),
-) -> PaginatedItems:
-    """
-    Locations are items with a tag of 'Location'. List openHAB locations with basic information
-    with pagination. Use the `get_item_details` tool to get more information about a specific
-    location item.
-
-    Args:
-        page: 1-based page number (default: 1)
-        page_size: Number of elements per page (default: 50)
-        sort_by: Field to sort by (e.g., "name", "label") (default: "name")
-        sort_order: Sort order ("asc" or "desc") (default: "asc")
-    """
-    try:
-        return openhab_client.list_locations(
-            page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
-        )
-    except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
 
 @mcp.tool()
 def list_things(
@@ -378,12 +318,8 @@ def list_things(
             page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
         )
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def get_thing_details(
@@ -399,12 +335,17 @@ def get_thing_details(
     try:
         return openhab_client.get_thing_details(thing_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
+
+@mcp.tool()
+def get_thing_schema() -> dict:
+    """
+    Get the JSON schema for creating a thing.
+    """
+    schema = Thing.model_json_schema()
+    schema["additionalProperties"] = False
+    return schema
 
 @mcp.tool()
 def create_thing(
@@ -419,12 +360,8 @@ def create_thing(
     try:
         return openhab_client.create_thing(thing)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def update_thing(
@@ -439,12 +376,8 @@ def update_thing(
     try:
         return openhab_client.update_thing(thing)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def delete_thing(
@@ -459,12 +392,8 @@ def delete_thing(
     try:
         return openhab_client.delete_thing(thing_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def list_rules(
@@ -502,12 +431,7 @@ def list_rules(
             filter_tag=filter_tag,
         )
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
 
 
 @mcp.tool()
@@ -523,12 +447,8 @@ def get_rule_details(
     try:
         return openhab_client.get_rule_details(rule_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def list_scripts(
@@ -558,12 +478,8 @@ def list_scripts(
             page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
         )
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def get_script_details(
@@ -578,12 +494,8 @@ def get_script_details(
     try:
         return openhab_client.get_script_details(script_id)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def update_rule(
@@ -602,12 +514,8 @@ def update_rule(
     try:
         return openhab_client.update_rule(rule_uid, rule_updates)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def update_rule_script_action(
@@ -630,13 +538,16 @@ def update_rule_script_action(
             rule_uid, action_id, script_type, script_content
         )
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
 
+@mcp.tool()
+def get_rule_schema() -> dict:
+    """
+    Get the JSON schema for creating a rule.
+    """
+    schema = RuleDetails.model_json_schema()
+    schema["additionalProperties"] = False
+    return schema
 
 @mcp.tool()
 def create_rule(rule: RuleDetails = Field(description="Rule to create")) -> RuleDetails:
@@ -649,12 +560,8 @@ def create_rule(rule: RuleDetails = Field(description="Rule to create")) -> Rule
     try:
         return openhab_client.create_rule(rule)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def delete_rule(rule_uid: str = Field(description="UID of the rule to delete")) -> bool:
@@ -667,12 +574,16 @@ def delete_rule(rule_uid: str = Field(description="UID of the rule to delete")) 
     try:
         return openhab_client.delete_rule(rule_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
+@mcp.tool()
+def get_script_schema() -> dict:
+    """
+    Get the JSON schema for creating a script.
+    """
+    schema = RuleDetails.model_json_schema()
+    schema["additionalProperties"] = False
+    return schema
 
 @mcp.tool()
 def create_script(
@@ -681,7 +592,7 @@ def create_script(
     content: str = Field(description="Content of the script"),
 ) -> RuleDetails:
     """
-    Create a new openHAB script. A script is a rule without a trigger and tag of 'Script'. 
+    Create a new openHAB script. A script is a rule without a trigger and tag of 'Script'.
 
     Args:
         script_id: ID of the script to create
@@ -691,12 +602,8 @@ def create_script(
     try:
         return openhab_client.create_script(script_id, script_type, content)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def update_script(
@@ -715,12 +622,8 @@ def update_script(
     try:
         return openhab_client.update_script(script_id, script_type, content)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 def delete_script(
     script_id: str = Field(description="ID of the script to delete"),
@@ -734,12 +637,8 @@ def delete_script(
     try:
         return openhab_client.delete_script(script_id)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def run_rule_now(rule_uid: str = Field(description="UID of the rule to run")) -> bool:
@@ -752,12 +651,8 @@ def run_rule_now(rule_uid: str = Field(description="UID of the rule to run")) ->
     try:
         return openhab_client.run_rule_now(rule_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def list_tags(
@@ -775,12 +670,8 @@ def list_tags(
     try:
         return openhab_client.list_tags(parent_tag_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def get_tag(
@@ -795,12 +686,8 @@ def get_tag(
     try:
         return openhab_client.get_tag(tag_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def get_create_tag_schema() -> dict:
@@ -810,6 +697,7 @@ def get_create_tag_schema() -> dict:
     schema = Tag.model_json_schema()
     schema["additionalProperties"] = False
     return schema
+
 
 @mcp.tool()
 def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
@@ -824,12 +712,7 @@ def create_tag(tag: Tag = Field(description="Tag to create")) -> Tag:
     try:
         created_tag = openhab_client.create_tag(tag)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
     return created_tag
 
 
@@ -844,12 +727,7 @@ def delete_tag(tag_uid: str = Field(description="UID of the tag to delete")) -> 
     try:
         openhab_client.delete_tag(tag_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
     return True
 
 
@@ -879,12 +757,7 @@ def list_links(
     try:
         links = openhab_client.list_links(page, page_size, sort_order, item_name)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
     return links
 
 
@@ -903,12 +776,7 @@ def get_link(
     try:
         link = openhab_client.get_link(item_name, channel_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
     return link
 
 
@@ -923,12 +791,7 @@ def create_link(link: Link = Field(description="Link to create")) -> Link:
     try:
         created_link = openhab_client.create_link(link)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
     return created_link
 
 
@@ -947,12 +810,8 @@ def delete_link(
     try:
         return openhab_client.delete_link(item_name, channel_uid)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+
 
 @mcp.tool()
 def update_link(link: Link = Field(description="Link to update")) -> Link:
@@ -965,12 +824,7 @@ def update_link(link: Link = Field(description="Link to update")) -> Link:
     try:
         updated_link = openhab_client.update_link(link)
     except ValueError as e:
-        return {
-            "isError": True,
-            "content": [
-                TextContent(type="text", text=str(e))
-            ]
-        }
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
     return updated_link
 
 
