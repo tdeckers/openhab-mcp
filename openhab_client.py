@@ -781,11 +781,8 @@ class OpenHABClient:
 
     def create_tag(self, tag: Tag) -> Tag:
         """Create a new tag"""
-        if not tag.name:
-            raise ValueError("Tag must have a name")
 
-        if not tag.uid:
-            raise ValueError("Tag must have a uid")
+        tag.raise_for_errors()
 
         payload = tag.model_dump()
 
