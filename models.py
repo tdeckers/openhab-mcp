@@ -1,6 +1,6 @@
 import re
-import typing
-from typing import Dict, List, Optional, Any, NamedTuple, Annotated, Union
+from enum import Enum
+from typing import Dict, List, Optional, Any, NamedTuple, Annotated
 from typing_extensions import override, TypedDict, Self
 from pydantic import BaseModel, Field, ConfigDict, ModelWrapValidatorHandler, WrapValidator, ValidatorFunctionWrapHandler, model_validator
 from pydantic_core import ValidationError, PydanticUndefined
@@ -103,6 +103,52 @@ class ErrorModel(CustomBaseModel):
     classname: str
     message: str
 
+class TagCategoryEnum(str, Enum):
+    equipment = 'Equipment'
+    point = 'Point'
+    location = 'Location'
+    property = 'Property'
+
+class Tag(CustomBaseModel):
+    uid: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    category: Annotated[TagCategoryEnum, Field(required=True), WrapValidator(handle_error_gracefully)]
+    parentuid: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
+    name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    label: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    description: Annotated[Optional[str], Field(default=None), WrapValidator(handle_error_gracefully)]
+    synonyms: Annotated[List[str], Field(default=[]), WrapValidator(handle_error_gracefully)]
+    editable: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
+
+    @classmethod
+    def prepare_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get('parentuid') and data.get('name') and not data.get('uid'):
+                data.update({'uid': data['parentuid'] + '_' + data['name']})
+                if not data.get('category'):
+                    data.update({'category': TagCategoryEnum(data['parentuid'].split('_')[0])})
+            elif data.get('uid') and not data.get('parentuid'):
+                if '_' in data['uid']:
+                    match = re.match(r".*(?=_)", data['uid'])
+                    if match:
+                        parentuid = match.group()
+                        data.update({'parentuid': parentuid})
+                if not data.get('category'):
+                    data.update({'category': TagCategoryEnum(data['uid'].split('_')[0])})
+        return data
+
+    @override
+    def after_model_validations(self) -> Self:
+        if self.category and not isinstance(self.category, TagCategoryEnum):
+            raise ValueError("Tag 'category' must be a valid TagCategoryEnum (one of Equipment, Point, Location, Property).")
+        if self.parentuid and self.category and not self.parentuid.startswith((self.category.value)):
+            raise ValueError("Tag 'parentuid' must start with the tag category.")
+        if self.parentuid and self.parentuid.endswith('_'):
+            raise ValueError("Tag 'parentuid' must not end with '_'.")
+        if self.parentuid and self.parentuid + "_" + self.name != self.uid:
+            raise ValueError("Tag 'uid' must be a concatenation of 'parentuid' and 'name' separated by an underscore.")
+        return self
+
+
 class Item(CustomBaseModel):
     type: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
     name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
@@ -110,7 +156,7 @@ class Item(CustomBaseModel):
     transformedState: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
     label: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
     category: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
-    tags: Annotated[List[str], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
+    tags: Annotated[List[Tag], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
     groupNames: Annotated[List[str], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
     has_details: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
 
@@ -227,39 +273,6 @@ class RuleDetails(Rule):
     actions: List[RuleAction] = []
     configuration: Dict[str, Any] = Field(default_factory=dict)
     configDescriptions: List[Dict[str, Any]] = Field(default_factory=list)
-
-class Tag(CustomBaseModel):
-    uid: Annotated[str, Field(required=False), WrapValidator(handle_error_gracefully)]
-    parentuid: Annotated[str, Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
-    name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
-    label: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
-    description: Annotated[Optional[str], Field(default=None), WrapValidator(handle_error_gracefully)]
-    synonyms: Annotated[List[str], Field(default=[]), WrapValidator(handle_error_gracefully)]
-    editable: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
-
-    @classmethod
-    def prepare_data(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if data.get('parentuid') and data.get('name') and not data.get('uid'):
-                data.update({'uid': data['parentuid'] + '_' + data['name']})
-            elif data.get('uid') and not data.get('parentuid'):
-                if '_' in data['uid']:
-                    match = re.match(r".*(?=_)", data['uid'])
-                    if match:
-                        parentuid = match.group()
-                        data.update({'parentuid': parentuid})
-        return data
-
-    @override
-    def after_model_validations(self) -> Self:
-        if self.parentuid and not self.parentuid.startswith(('Equipment', 'Point', 'Location', 'Property')):
-            raise ValueError("Tag 'parentuid' must start with the literal 'Equipment', 'Point', 'Location', or 'Property'.")
-        if self.parentuid and self.parentuid.endswith('_'):
-            raise ValueError("Tag 'parentuid' must not end with '_'.")
-        if self.parentuid and self.parentuid + "_" + self.name != self.uid:
-            raise ValueError("Tag 'uid' must be a concatenation of 'parentuid' and 'name' separated by an underscore.")
-        return self
-
 
 class Link(CustomBaseModel):
     itemName: str

@@ -86,8 +86,14 @@ class OpenHABClient:
         response = self.session.get(f"{self.base_url}/rest/items", params=params)
         response.raise_for_status()
 
+        # Enrich items with Tag details
+        response_json = response.json()
+        tags = self.list_tags()
+        for item in response_json:
+            item["tags"] = [tag.model_dump() for tag in tags if tag.name in item["tags"]]
+
         # Convert to Item objects
-        items = [Item(**item) for item in response.json()]
+        items = [Item(**item) for item in response_json]
         items = [item for item in items if filter_name is None or filter_name.lower() in item.name.lower()]
 
         # Sort the items
@@ -749,7 +755,7 @@ class OpenHABClient:
         tags = [Tag(**tag) for tag in response.json()]
 
         if parent_tag_uid:
-            tags = [tag for tag in tags if tag.uid.lower().startswith(f"{parent_tag_uid.lower()}_")]
+            tags = [tag for tag in tags if tag.uid and tag.uid.lower().startswith(f"{parent_tag_uid.lower()}_")]
 
         return tags
 
