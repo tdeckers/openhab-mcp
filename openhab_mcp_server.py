@@ -88,7 +88,7 @@ openhab_client = OpenHABClient(
 def list_items(
     page: int = Field(
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
-        default=1,
+        default=1
     ),
     page_size: int = Field(description="Number of elements per page", default=50),
     sort_by: str = Field(
@@ -97,20 +97,17 @@ def list_items(
     sort_order: str = Field(
         description="Sort order", examples=["asc", "desc"], default="asc"
     ),
-    filter_tag: Optional[str] = Field(
-        description="Optional filter items by tag name. All available tags can be retrieved from the `list_tags` tool",
-        examples=["Location", "Window", "Light", "FrontDoor"],
-        default=None,
+    filter_tag: str = Field(
+        description="Optional filter items by tag name. All available tags can be retrieved from the [list_tags](cci:1://file:///home/thomas/Projects/openhab-mcp/openhab_mcp_server.py:644:0-660:84) tool",
+        examples=["Location", "Window", "Light", "FrontDoor"], default=""
     ),
-    filter_type: Optional[str] = Field(
+    filter_type: str = Field(
         description="Optional filter items by type",
-        examples=["Switch", "Group", "String"],
-        default=None,
+        examples=["Switch", "Group", "String", "DateTime"], default=""
     ),
-    filter_name: Optional[str] = Field(
+    filter_name: str = Field(
         description="Optional filter items by name. All items that contain the filter value in their name are returned",
-        examples=["Kitchen", "LivingRoom", "Bedroom"],
-        default=None,
+        examples=["Kitchen", "LivingRoom", "Bedroom"], default=""
     ),
 ) -> PaginatedItems:
     """

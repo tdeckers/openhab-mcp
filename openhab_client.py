@@ -90,11 +90,13 @@ class OpenHABClient:
         response_json = response.json()
         tags = self.list_tags()
         for item in response_json:
-            item["tags"] = [tag.model_dump() for tag in tags if tag.name in item["tags"]]
+            item["semantic_tags"] = [tag.model_dump() for tag in tags if tag.name in item["tags"]]
+            item["non_semantic_tags"] = [tag for tag in item["tags"] if tag not in [tag.name for tag in tags]]
+            del item["tags"]
 
         # Convert to Item objects
         items = [Item(**item) for item in response_json]
-        items = [item for item in items if filter_name is None or filter_name.lower() in item.name.lower()]
+        items = [item for item in items if not filter_name or filter_name.lower() in item.name.lower()]
 
         # Sort the items
         reverse_sort = sort_order.lower() == "desc"
@@ -147,7 +149,12 @@ class OpenHABClient:
                 f"{self.base_url}/rest/items/{item_name}"
             )
             response.raise_for_status()
-            return ItemDetails(**response.json())
+            response_json = response.json()
+            tags = self.list_tags()
+            response_json["semantic_tags"] = [tag.model_dump() for tag in tags if tag.name in response_json["tags"]]
+            response_json["non_semantic_tags"] = [tag for tag in response_json["tags"] if tag not in [tag.name for tag in tags]]
+            del response_json["tags"]
+            return ItemDetails(**response_json)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
@@ -159,6 +166,13 @@ class OpenHABClient:
         item.raise_for_errors()
 
         payload = item.model_dump()
+        payload["tags"] = []
+        if "semantic_tags" in payload:
+            payload["tags"] += [tag.get("name") for tag in payload["semantic_tags"]]
+            del payload["semantic_tags"]
+        if "non_semantic_tags" in payload:
+            payload["tags"] += payload["non_semantic_tags"]
+            del payload["non_semantic_tags"]
 
         response = self.session.put(
             f"{self.base_url}/rest/items/{item.name}", json=payload
@@ -238,6 +252,11 @@ class OpenHABClient:
                 return [to_dict(v) for v in value]
             return value
 
+        tags = []
+        if item.semantic_tags:
+            tags += [tag.name for tag in item.semantic_tags]
+        if item.non_semantic_tags:
+            tags += item.non_semantic_tags
         # Prepare update payload with proper serialization
         payload = {
             "type": item.type or current_item.type,
@@ -245,7 +264,7 @@ class OpenHABClient:
             "state": item.state or current_item.state,
             "label": item.label or current_item.label,
             "category": item.category or current_item.category,
-            "tags": item.tags or current_item.tags,
+            "tags": tags,
             "groupNames": item.groupNames or current_item.groupNames,
             "members": [to_dict(m) for m in (item.members or current_item.members)],
             "metadata": to_dict(item.metadata or current_item.metadata or {}),

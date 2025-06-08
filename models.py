@@ -156,7 +156,8 @@ class Item(CustomBaseModel):
     transformedState: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
     label: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
     category: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
-    tags: Annotated[List[Tag], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
+    semantic_tags: Annotated[List[Tag], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
+    non_semantic_tags: Annotated[List[str], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
     groupNames: Annotated[List[str], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
     has_details: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
 
