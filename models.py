@@ -2,7 +2,15 @@ import re
 from enum import Enum
 from typing import Dict, List, Optional, Any, NamedTuple, Annotated
 from typing_extensions import override, TypedDict, Self
-from pydantic import BaseModel, Field, ConfigDict, ModelWrapValidatorHandler, WrapValidator, ValidatorFunctionWrapHandler, model_validator
+from pydantic import (
+    BaseModel, 
+    Field, 
+    ConfigDict, 
+    ModelWrapValidatorHandler, 
+    WrapValidator, 
+    ValidatorFunctionWrapHandler, 
+    model_validator
+)
 from pydantic_core import ValidationError, PydanticUndefined
 
 def handle_error_gracefully(value: Any, handler: ValidatorFunctionWrapHandler) -> Optional[Any]:
@@ -31,7 +39,11 @@ class CustomBaseModel(BaseModel):
             model.after_model_validations()
             return model
         except (ValidationError, ValueError) as err:
-            return ErrorModel(classname=cls.__name__, message=str(err))
+            error = ErrorModel(classname=cls.__name__, message=f"Input validation failed: {str(err)}")
+            if isinstance(err, ValidationError):
+                for error in err.errors():
+                    error.errors.append(ErrorValue(value=error['input'], message=error['msg']))
+            return error
 
     @override
     def model_dump(self, **kwargs):
@@ -42,7 +54,13 @@ class CustomBaseModel(BaseModel):
     def raise_for_errors(self):
 
         if isinstance(self, ErrorModel):
-            raise ValueError(f"Failed to validate model for class {self.classname}: {self.message}")
+            messages = []
+            if self.errors:
+                for error in self.errors:
+                    messages.append(f"{self.message} in class {self.classname}: {error.value}: {error.message}")
+            else:
+                messages.append(f"Failed to validate model for class {self.classname}: {self.message}")
+            raise ValueError("\n".join(messages))
 
         errors = self.get_error_fields()
         extra = list(self.model_extra.keys())
@@ -61,20 +79,34 @@ class CustomBaseModel(BaseModel):
     def get_error_fields(self, prefix="") -> dict[str, dict[str, Any]]:
         error_fields = {}
 
+        # Check if this is an ErrorModel
+        if hasattr(self, 'classname') and hasattr(self, 'message'):
+            error_fields[prefix or 'error'] = {
+                "message": self.message,
+                "value": None
+            }
+            return error_fields
+
         for name, field_info in self.__class__.model_fields.items():
             full_name = f"{prefix}.{name}" if prefix else name
             value = getattr(self, name, PydanticUndefined)
 
+            # Skip None values and undefined fields
+            if value is None or value is PydanticUndefined:
+                continue
+
+            # Handle ErrorValue
             if isinstance(value, ErrorValue):
                 error_fields[full_name] = {
                     "message": value.message,
                     "value": value.value,
                 }
-
+            # Handle nested CustomBaseModel instances (including ErrorModel)
             elif isinstance(value, CustomBaseModel):
                 nested_errors = value.get_error_fields(prefix=full_name)
                 error_fields.update(nested_errors)
 
+            # Handle lists/tuples
             elif isinstance(value, (list, tuple)) and not isinstance(value, str):
                 for idx, item in enumerate(value):
                     item_name = f"{full_name}[{idx}]"
@@ -86,9 +118,10 @@ class CustomBaseModel(BaseModel):
                     elif isinstance(item, CustomBaseModel):
                         error_fields.update(item.get_error_fields(prefix=item_name))
 
+            # Handle dictionaries
             elif isinstance(value, dict):
                 for key, item in value.items():
-                    item_name = f"{full_name}[{repr(key)}]"
+                    item_name = f"{full_name}[{key}]"
                     if isinstance(item, ErrorValue):
                         error_fields[item_name] = {
                             "message": item.message,
@@ -100,8 +133,9 @@ class CustomBaseModel(BaseModel):
         return error_fields
 
 class ErrorModel(CustomBaseModel):
-    classname: str
-    message: str
+    classname: Annotated[str, Field(required=True)]
+    message: Annotated[str, Field(required=True)]
+    errors: Annotated[Optional[List[ErrorValue]], Field(required=False, default_factory=list)]
 
 class TagCategoryEnum(str, Enum):
     equipment = 'Equipment'
@@ -111,29 +145,30 @@ class TagCategoryEnum(str, Enum):
 
 class Tag(CustomBaseModel):
     uid: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
-    category: Annotated[TagCategoryEnum, Field(required=True), WrapValidator(handle_error_gracefully)]
+    category: Annotated[TagCategoryEnum, Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
     parentuid: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
     name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
-    label: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
-    description: Annotated[Optional[str], Field(default=None), WrapValidator(handle_error_gracefully)]
-    synonyms: Annotated[List[str], Field(default=[]), WrapValidator(handle_error_gracefully)]
-    editable: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
-
+    label: Annotated[str, Field(required=True, default=""), WrapValidator(handle_error_gracefully)]
+    description: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
+    synonyms: Annotated[List[str], Field(required=False, default_factory=list), WrapValidator(handle_error_gracefully)]
+    
     @classmethod
     def prepare_data(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            if data.get('parentuid') and data.get('name') and not data.get('uid'):
-                data.update({'uid': data['parentuid'] + '_' + data['name']})
-                if not data.get('category'):
-                    data.update({'category': TagCategoryEnum(data['parentuid'].split('_')[0])})
-            elif data.get('uid') and not data.get('parentuid'):
-                if '_' in data['uid']:
+            if data.get('uid'):
+                if not data.get('parentuid'):
                     match = re.match(r".*(?=_)", data['uid'])
                     if match:
                         parentuid = match.group()
                         data.update({'parentuid': parentuid})
+                
                 if not data.get('category'):
-                    data.update({'category': TagCategoryEnum(data['uid'].split('_')[0])})
+                    match = re.match(r"^.*?(?=_)", data['uid'])
+                    if match:
+                        category = match.group()
+                    else:
+                        category = data['uid']
+                    data.update({'category': category})
         return data
 
     @override
@@ -148,38 +183,16 @@ class Tag(CustomBaseModel):
             raise ValueError("Tag 'uid' must be a concatenation of 'parentuid' and 'name' separated by an underscore.")
         return self
 
-
-class Item(CustomBaseModel):
-    type: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
-    name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
-    state: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
-    transformedState: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
-    label: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
-    category: Annotated[str, Field(default=None), WrapValidator(handle_error_gracefully)]
-    semantic_tags: Annotated[List[Tag], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
-    non_semantic_tags: Annotated[List[str], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
-    groupNames: Annotated[List[str], Field(default_factory=list), WrapValidator(handle_error_gracefully)]
-    has_details: Annotated[bool, Field(default=True), WrapValidator(handle_error_gracefully)]
-
-    @property
-    def get_details(self):
-        return f"get_item_details(name='{self.name}')"
-
-    @override
-    def after_model_validations(self) -> Self:
-        if isinstance(self, Item):
-            if not self.has_details:
-                raise ValueError("Every Item must have 'has_details' set to True.")
-            if self.name and self.name[0].isdigit():
-                raise ValueError("Item 'name' may not start with a digit.")
-        return self
+class ItemMetadata(CustomBaseModel):
+    value: str = " "
+    config: Optional[Dict[str, Any]] = None
 
 class CommandOptions(TypedDict):
     command: str
     label: str
 
 class CommandDescription(CustomBaseModel):
-    commandOptions: List[CommandOptions]
+    commandOptions: List[CommandOptions] = Field(default_factory=list)
 
 class StateOptions(TypedDict):
     value: str
@@ -193,16 +206,27 @@ class StateDescription(CustomBaseModel):
     readOnly: Optional[bool] = None
     options: Optional[List[StateOptions]] = None
 
-class ItemMetadata(CustomBaseModel):
-    value: str = " "
-    config: Optional[Dict[str, Any]] = None
-
-class ItemDetails(Item):
-    members: List['ItemDetails'] = []
-    metadata: Optional[Dict[str, ItemMetadata]] = None
-    commandDescription: Optional[CommandDescription] = None
-    stateDescription: Optional[StateDescription] = None
-    unitSymbol: Optional[str] = None
+class Item(CustomBaseModel):
+    type: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    label: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
+    category: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
+    semantic_tags: Annotated[List[Tag], Field(required=False, default_factory=list), WrapValidator(handle_error_gracefully)]
+    non_semantic_tags: Annotated[List[str], Field(required=False, default_factory=list), WrapValidator(handle_error_gracefully)]
+    groupNames: Annotated[List[str], Field(required=False, default_factory=list), WrapValidator(handle_error_gracefully)]
+    members: Annotated[List['Item'], Field(required=False, default_factory=list), WrapValidator(handle_error_gracefully)]
+    groupType: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
+    function: Annotated[Optional[Dict[str, Any]], Field(required=False, default_factory=dict), WrapValidator(handle_error_gracefully)]
+    commandDescription: Annotated[Optional[CommandDescription], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
+    stateDescription: Annotated[Optional[StateDescription], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
+    unitSymbol: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
+    
+    @override
+    def after_model_validations(self) -> Self:
+        if isinstance(self, Item):
+            if self.name and self.name[0].isdigit():
+                raise ValueError("Item 'name' may not start with a digit.")
+        return self
 
 class DataPoint(NamedTuple):
     time: int
@@ -212,27 +236,13 @@ class ItemPersistence(CustomBaseModel):
     name: str
     data: List[DataPoint] = []
 
-class ThingStatusInfo(CustomBaseModel):
-    status: str
-    statusDetail: str = "NONE"
-    description: Optional[str] = None
-
 class Thing(CustomBaseModel):
     thingTypeUID: Optional[str] = None
     UID: Optional[str] = None
     label: Optional[str] = None
     bridgeUID: Optional[str] = None
-    statusInfo: Optional[ThingStatusInfo] = None
     configuration: Dict[str, Any] = Field(default_factory=dict)
     properties: Dict[str, str] = Field(default_factory=dict)
-    has_details: bool = True
-
-    @property
-    def get_details(self):
-        return f"get_thing_details(name='{self.name}')"
-
-class ThingDetails(Thing):
-    channels: List[Dict[str, Any]] = Field(default_factory=list)
 
 class RuleStatus(CustomBaseModel):
     status: str

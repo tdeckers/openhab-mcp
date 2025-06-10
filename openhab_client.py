@@ -2,25 +2,21 @@ import re
 import requests
 import random
 import string
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
+from pydantic import create_model
+import json
 
 from models import (
     Item,
-    ItemDetails,
     ItemMetadata,
     Link,
     Thing,
-    ThingDetails,
     Tag,
-    PaginatedThings,
-    PaginatedItems,
-    PaginatedLinks,
     PaginationInfo,
-    PaginatedRules,
-    Rule,
     RuleDetails,
     ItemPersistence,
 )
+
 
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
@@ -51,116 +47,160 @@ class OpenHABClient:
             for _ in range(10)
         )
 
+    def _filter_item_fields(self, item: Dict[str, Any], output_fields: Optional[Set[str]]) -> Dict[str, Any]:
+        """Filter item fields based on the requested output fields."""
+        if output_fields is None:
+            return item
+            
+        filtered_item = {}
+        # Always include name for identification
+        if "name" in item:
+            filtered_item["name"] = item["name"]
+            
+        # Include all requested fields that exist in the item
+        for field in output_fields:
+            if field in item:
+                filtered_item[field] = item[field]
+            
+        return filtered_item
+
+    def _process_member(self, member: Dict[str, Any], output_fields: Optional[Set[str]], tags: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Process a single member item and its nested members with field filtering."""
+        # Process tags if needed
+        member_tags = member.get("tags", []).copy()
+        
+        if not output_fields or (member_tags and output_fields and ("semantic_tags" in output_fields or "non_semantic_tags" in output_fields)):
+            semantic_tags = [tag for tag in tags if tag.get('name') in member_tags]
+            non_semantic_tags = [tag for tag in member_tags if tag not in [t.get('name', '') for t in tags]]
+            
+            if output_fields is None:
+                member["semantic_tags"] = semantic_tags
+                member["non_semantic_tags"] = non_semantic_tags
+            else:
+                if "semantic_tags" in output_fields:
+                    member["semantic_tags"] = semantic_tags
+                if "non_semantic_tags" in output_fields:
+                    member["non_semantic_tags"] = non_semantic_tags
+        
+        # Rest of the method remains the same
+        if "tags" in member:
+            del member["tags"]
+            
+        # Filter member fields
+        filtered_member = self._filter_item_fields(member, output_fields)
+        
+        # Process nested members if they exist and members are requested
+        if "members" in member and (not output_fields or "members" in output_fields):
+            filtered_members = []
+            for nested_member in member["members"]:
+                filtered_nested = self._process_member(nested_member, output_fields, tags)
+                filtered_members.append(filtered_nested)
+            filtered_member["members"] = filtered_members
+            
+        return filtered_member
+
     def list_items(
         self,
         page: int = 1,
         page_size: int = 15,
-        sort_by: str = "name",
         sort_order: str = "asc",
         filter_tag: Optional[str] = None,
         filter_type: Optional[str] = None,
         filter_name: Optional[str] = None,
-    ) -> PaginatedItems:
+        filter_fields: List[str] = [],
+    ) -> Dict[str, Any]:
         """
         List items with pagination
 
         Args:
             page: 1-based page number
             page_size: Number of items per page
-            sort_by: Field to sort by (e.g., "label", "thingTypeUID")
             sort_order: Sort order ("asc" or "desc")
-            filter_tag: Optional filter items by tag name
+            filter_tag: Optional filter items by tag name or tag UID
             filter_type: Optional filter items by type
             filter_name: Optional filter items by name
+            filter_fields: Optional filter items by fields
 
         Returns:
-            PaginatedItems object containing the paginated results and pagination info
+            Dictionary containing the paginated results and pagination info
         """
-        # Get all items
+        # Get all tags for semantic/non-semantic tag processing
+        tags = self.list_tags()
+
+        if filter_tag and "_" in filter_tag:
+            filter_tag = filter_tag.split("_")[-1]
+
+        # Prepare API parameters
         params = {}
         if filter_tag:
             params["tags"] = filter_tag
         if filter_type:
             params["type"] = filter_type
+        
+        # Determine which fields to include in the final output
+        output_fields = set(filter_fields) if filter_fields else None
+        
+        if output_fields:
+            # Prepare API fields to request
+            api_fields = {"name"}  # Always include name for identification
+            
+            # Add fields needed for tag processing
+            if ("semantic_tags" in output_fields or "non_semantic_tags" in output_fields):
+                api_fields.update(["tags"])
+                
+            # Add other requested fields
+            if output_fields:
+                api_fields.update(f for f in output_fields if f not in ["semantic_tags", "non_semantic_tags"])
+                
+            # Convert to comma-separated string for the API
+            params["fields"] = ",".join(api_fields)
 
+        # Set recursive if members are requested
+        if not filter_fields or "members" in filter_fields:
+            params["recursive"] = "true"
+            
+        # Make the API request
         response = self.session.get(f"{self.base_url}/rest/items", params=params)
         response.raise_for_status()
 
-        # Enrich items with Tag details
+        # Process the response
         response_json = response.json()
-        tags = self.list_tags()
+        processed_items = []
+        
         for item in response_json:
-            item["semantic_tags"] = [tag.model_dump() for tag in tags if tag.name in item["tags"]]
-            item["non_semantic_tags"] = [tag for tag in item["tags"] if tag not in [tag.name for tag in tags]]
-            del item["tags"]
-
-        # Convert to Item objects
-        items = [Item(**item) for item in response_json]
-        items = [item for item in items if not filter_name or filter_name.lower() in item.name.lower()]
-
-        # Sort the items
+            # Skip items that don't match the name filter (if provided)
+            if filter_name and filter_name.lower() not in item.get("name", "").lower():
+                continue
+                
+            # Process the item and its members
+            processed_item = self._process_member(item, output_fields, tags)
+            processed_items.append(processed_item)
+        
+        # Apply sorting
         reverse_sort = sort_order.lower() == "desc"
-        try:
-            items.sort(
-                key=lambda x: (
-                    str(getattr(x, sort_by, "")).lower() if hasattr(x, sort_by) else ""
-                ),
-                reverse=reverse_sort,
-            )
-        except Exception as e:
-            # Fallback to default sort if the requested sort field doesn't exist
-            items.sort(
-                key=lambda x: str(x.name).lower() if x.name else "",
-                reverse=reverse_sort,
-            )
-
-        # Calculate pagination
-        total_elements = len(items)
-        total_pages = (
-            (total_elements + page_size - 1) // page_size if page_size > 0 else 1
-        )
+        processed_items.sort(key=lambda x: x.get("name", ""), reverse=reverse_sort)
+        
+        # Apply pagination
+        total_items = len(processed_items)
+        total_pages = (total_items + page_size - 1) // page_size if page_size > 0 else 1
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
+        paginated_items = processed_items[start_idx:end_idx]
+        
+        # Return paginated results as a dictionary
+        return {
+            "items": paginated_items,
+            "pagination": {
+                "total_elements": total_items,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_previous": page > 1
+            }
+        }
 
-        # Get the page of items
-        paginated_items = items[start_idx:end_idx]
-
-        return PaginatedItems(
-            items=paginated_items,
-            pagination=PaginationInfo(
-                total_elements=total_elements,
-                page=page,
-                page_size=page_size,
-                total_pages=total_pages,
-                has_next=end_idx < total_elements,
-                has_previous=start_idx > 0,
-            ),
-        )
-
-    def get_item_details(
-        self, item_name: str
-    ) -> Optional[ItemDetails]:
-        """Get a specific item by name."""
-        if item_name is None:
-            return None
-
-        try:
-            response = self.session.get(
-                f"{self.base_url}/rest/items/{item_name}"
-            )
-            response.raise_for_status()
-            response_json = response.json()
-            tags = self.list_tags()
-            response_json["semantic_tags"] = [tag.model_dump() for tag in tags if tag.name in response_json["tags"]]
-            response_json["non_semantic_tags"] = [tag for tag in response_json["tags"] if tag not in [tag.name for tag in tags]]
-            del response_json["tags"]
-            return ItemDetails(**response_json)
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                return None
-            raise
-
-    def create_item(self, item: ItemDetails) -> ItemDetails:
+    def create_item(self, item: Item) -> Item:
         """Create a new item"""
 
         item.raise_for_errors()
@@ -168,7 +208,7 @@ class OpenHABClient:
         payload = item.model_dump()
         payload["tags"] = []
         if "semantic_tags" in payload:
-            payload["tags"] += [tag.get("name") for tag in payload["semantic_tags"]]
+            payload["tags"] += [tag.name for tag in payload["semantic_tags"]]
             del payload["semantic_tags"]
         if "non_semantic_tags" in payload:
             payload["tags"] += payload["non_semantic_tags"]
@@ -180,15 +220,47 @@ class OpenHABClient:
         response.raise_for_status()
 
         # Get the created item
-        return self.get_item_details(item.name)
+        return next(
+            iter(
+                item
+                for item in self.list_items(filter_name=item.name, page_size=1)["items"]
+            ),
+            None,
+        )
 
     def create_item_metadata(
         self, item_name: str, namespace: str, metadata: ItemMetadata
-    ) -> ItemDetails:
-        """Create metadata for a specific item"""
+    ) -> Dict[str, Any]:
+        """
+        Create new metadata for a specific openHAB item.
 
-        item = self.get_item_details(item_name)
-        if namespace in item.metadata:
+        Args:
+            item_name: Name of the item to create metadata for
+            namespace: Namespace for the metadata (must be unique per item)
+            metadata: ItemMetadata object containing the metadata value and config
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the updated item data
+
+        Raises:
+            ValueError: If the metadata is invalid or the namespace already exists
+            requests.HTTPError: If the API request fails
+            KeyError: If the specified item doesn't exist
+        """
+
+        # Get the item using list_items with name filter
+        result = self.list_items(filter_name=item_name, page_size=1)
+        if not result["items"]:
+            raise KeyError(f"Item with name '{item_name}' not found")
+        item = next(
+            iter(
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
+
+        if "metadata" in item and namespace in item["metadata"]:
             raise ValueError(
                 f"Namespace '{namespace}' already exists for item '{item_name}'"
             )
@@ -203,15 +275,32 @@ class OpenHABClient:
         )
         response.raise_for_status()
 
-        return self.get_item_details(item_name)
+        # Get the updated item using list_items with name filter
+        return next(
+            iter(
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
 
     def update_item_metadata(
         self, item_name: str, namespace: str, metadata: ItemMetadata
-    ) -> ItemDetails:
+    ) -> Dict[str, Any]:
         """Update metadata for a specific item"""
+        # Get the item using list_items with name filter
+        result = self.list_items(filter_name=item_name, page_size=1)
+        if not result["items"]:
+            raise KeyError(f"Item with name '{item_name}' not found")
+        item = next(
+            (
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
 
-        item = self.get_item_details(item_name)
-        if namespace not in item.metadata:
+        if "metadata" in item and namespace not in item["metadata"]:
             raise ValueError(
                 f"Namespace '{namespace}' does not exist for item '{item_name}'"
             )
@@ -226,109 +315,175 @@ class OpenHABClient:
         )
         response.raise_for_status()
 
-        return self.get_item_details(item_name)
+        # Get the updated item using list_items with name filter
+        return next(
+            iter(
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
+    
+    def delete_item_semantic_tag(self, item_name: str, tag_uid: str) -> bool:
+        """Delete semantic tag for a specific item"""
+        # Get the item using list_items with name filter
+        result = self.list_items(filter_name=item_name, page_size=1)
+        if not result["items"]:
+            raise KeyError(f"Item with name'{item_name}' not found")
+        item = next(
+            (
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
 
-    def update_item(self, item: ItemDetails) -> ItemDetails:
-        """Update an existing item"""
-        # Get current item to merge with updates
-        current_item = self.get_item_details(item.name)
-        if not current_item:
-            raise ValueError(f"Item with name '{item.name}' not found")
-        if (
-            item.transformedState
-            and item.transformedState != current_item.transformedState
-        ):
-            raise ValueError(
-                f"Cannot update transformedState of item '{item.name}'. Update state instead."
-            )
+        tag = self.get_tag(tag_uid, include_subtags=False)[0]
+        if not tag:
+            raise KeyError(f"Tag '{tag_uid}' not found")
+        
+        if tag["name"] not in [tag["name"] for tag in item["semantic_tags"]]:
+            raise KeyError(f"Tag '{tag_uid}' does not exist for item '{item_name}'")
 
-        # Helper function to safely convert Pydantic models to dict
-        def to_dict(value):
-            if hasattr(value, 'model_dump'):
-                return value.model_dump()
-            elif isinstance(value, dict):
-                return {k: to_dict(v) for k, v in value.items()}
-            elif isinstance(value, list):
-                return [to_dict(v) for v in value]
-            return value
-
-        tags = []
-        if item.semantic_tags:
-            tags += [tag.name for tag in item.semantic_tags]
-        if item.non_semantic_tags:
-            tags += item.non_semantic_tags
-        # Prepare update payload with proper serialization
-        payload = {
-            "type": item.type or current_item.type,
-            "name": item.name,
-            "state": item.state or current_item.state,
-            "label": item.label or current_item.label,
-            "category": item.category or current_item.category,
-            "tags": tags,
-            "groupNames": item.groupNames or current_item.groupNames,
-            "members": [to_dict(m) for m in (item.members or current_item.members)],
-            "metadata": to_dict(item.metadata or current_item.metadata or {}),
-            "commandDescription": to_dict(item.commandDescription or current_item.commandDescription),
-            "stateDescription": to_dict(item.stateDescription or current_item.stateDescription),
-            "unitSymbol": item.unitSymbol or current_item.unitSymbol,
-        }
-
-        response = self.session.put(
-            f"{self.base_url}/rest/items/{item.name}", json=payload
+        response = self.session.delete(
+            f"{self.base_url}/rest/items/{item_name}/tags/{tag['name']}"
         )
         response.raise_for_status()
 
-        # Get the updated item
-        return self.get_item_details(item.name)
+        # Get the updated item using list_items with name filter
+        return next(
+            iter(
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
+    
+    def delete_item_non_semantic_tag(self, item_name: str, tag_name: str) -> bool:
+        """Delete non-semantic tag for a specific item"""
+        # Get the item using list_items with name filter
+        result = self.list_items(filter_name=item_name, page_size=1)
+        if not result["items"]:
+            raise KeyError(f"Item with name'{item_name}' not found")
+        item = next(
+            (
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
 
-    def get_item_persistence(
-        self, item_name: str, starttime: str = None, endtime: str = None
-    ) -> ItemPersistence:
-        """
-        Get the persistence state values of an item between starttime and endtime
-        in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
-        """
+        if tag_name not in item["non_semantic_tags"]:
+            raise KeyError(f"Tag '{tag_name}' does not exist for item '{item_name}'")
 
-        if not item_name:
-            raise ValueError("Item name must be provided")
+        response = self.session.delete(
+            f"{self.base_url}/rest/items/{item_name}/tags/{tag_name}"
+        )
+        response.raise_for_status()
 
-        params = {}
-        if starttime:
-            if not DATE_PATTERN.match(starttime):
-                raise ValueError(f"Start time must be in format {DATE_PATTERN.pattern}")
-            params["starttime"] = starttime
+        # Get the updated item using list_items with name filter
+        return next(
+            iter(
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
 
-        if endtime:
-            if not DATE_PATTERN.match(endtime):
-                raise ValueError(f"End time must be in format {DATE_PATTERN.pattern}")
-            params["endtime"] = endtime
-
+    def update_item(self, item: Item) -> Dict[str, Any]:
+        """Update an existing item"""
+        # Validate the item before processing
         try:
-            response = self.session.get(
-                f"{self.base_url}/rest/persistence/items/{item_name}", params=params
+            item.raise_for_errors()
+    
+
+            # Get current item to merge with updates using list_items with name filter
+            result = self.list_items(filter_name=item.name, page_size=1)
+            if not result["items"]:
+                raise KeyError(f"Item with name '{item.name}' not found")
+            current_item = next(
+                iter(
+                    item
+                    for item in self.list_items(filter_name=item.name, page_size=1)["items"]
+                ),
+                None,
+            )
+
+            tags = []
+            if hasattr(item, 'semantic_tags') and item.semantic_tags:
+                tags += [tag.name for tag in item.semantic_tags]
+            if hasattr(item, 'non_semantic_tags') and item.non_semantic_tags:
+                tags += item.non_semantic_tags
+                
+            # Get the tags from the current item
+            current_tags = []
+            if current_item["semantic_tags"]:
+                current_tags += [tag["name"] for tag in current_item["semantic_tags"]]
+            if current_item["non_semantic_tags"]:
+                current_tags += current_item["non_semantic_tags"]
+
+            # Build payload with only non-None values from item or current_item
+            payload = {
+                "type": item.type or current_item.get("type"),
+                "name": item.name,
+            }
+            
+            # Add optional fields only if they have a value in either item or current_item
+            if item.label is not None or current_item.get("label"):
+                payload["label"] = item.label if item.label is not None else current_item.get("label")
+                
+            if item.category is not None or current_item.get("category"):
+                payload["category"] = item.category if item.category is not None else current_item.get("category")
+                
+            if tags or current_tags:
+                payload["tags"] = tags if tags else current_tags
+                
+            if item.groupNames is not None or current_item.get("groupNames"):
+                payload["groupNames"] = item.groupNames if item.groupNames is not None else current_item.get("groupNames")
+                
+            if item.groupType is not None or current_item.get("groupType"):
+                payload["groupType"] = item.groupType if item.groupType is not None else current_item.get("groupType")
+                
+            if item.function is not None or current_item.get("function"):
+                payload["function"] = item.function if item.function is not None else current_item.get("function")
+                
+            if item.members is not None or current_item.get("members"):
+                members = [member.model_dump() for member in (item.members if item.members is not None else [])] if item.members is not None else current_item.get("members")
+                if members is not None:  # Only add if not None
+                    payload["members"] = members
+                    
+            if item.commandDescription is not None or current_item.get("commandDescription"):
+                command_desc = item.commandDescription.model_dump() if item.commandDescription is not None else current_item.get("commandDescription")
+                if command_desc is not None:  # Only add if not None
+                    payload["commandDescription"] = command_desc
+                    
+            if item.stateDescription is not None or current_item.get("stateDescription"):
+                state_desc = item.stateDescription.model_dump() if item.stateDescription is not None else current_item.get("stateDescription")
+                if state_desc is not None:  # Only add if not None
+                    payload["stateDescription"] = state_desc
+                    
+            if item.unitSymbol is not None or current_item.get("unitSymbol"):
+                payload["unitSymbol"] = item.unitSymbol if item.unitSymbol is not None else current_item.get("unitSymbol")
+
+            print(json.dumps(payload, indent=2))  # Pretty print for debugging
+            response = self.session.put(
+                f"{self.base_url}/rest/items/{item.name}",
+                json=payload  # Let requests handle the JSON serialization
             )
             response.raise_for_status()
-            return ItemPersistence(**response.json())
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                return None
-            raise
 
-    def delete_item(self, item_name: str) -> bool:
-        """Delete an item"""
-        response = self.session.delete(f"{self.base_url}/rest/items/{item_name}")
+            # Get the updated item using list_items with name filter
+            result = self.list_items(filter_name=item.name, page_size=1)
+            return result["items"][0]
+        except ValueError as e:
+            raise ValueError(f"Item validation failed: {e}")
 
-        if response.status_code == 404:
-            raise ValueError(f"Item with name '{item_name}' not found")
-
-        response.raise_for_status()
-        return True
-
-    def update_item_state(self, item_name: str, state: str) -> ItemDetails:
+    def update_item_state(self, item_name: str, state: str) -> Dict[str, Any]:
         """Update just the state of an item"""
-        # Check if item exists
-        if not self.get_item_details(item_name):
-            raise ValueError(f"Item with name '{item_name}' not found")
+        # Check if item exists using list_items with name filter
+        result = self.list_items(filter_name=item_name, page_size=1)
+        if not result["items"]:
+            raise KeyError(f"Item with name '{item_name}' not found")
 
         # Update state
         response = self.session.post(
@@ -338,24 +493,23 @@ class OpenHABClient:
         )
         response.raise_for_status()
 
-        # Get the updated item
-        return self.get_item_details(item_name)
+        # Get the updated item using list_items with name filter
+        result = self.list_items(filter_name=item_name, page_size=1)
+        return result["items"][0].model_dump()
 
     def list_things(
         self,
         page: int = 1,
-        page_size: int = 15,
-        sort_by: str = "UID",
+        page_size: int = 50,
         sort_order: str = "asc",
-    ) -> PaginatedThings:
+    ) -> Dict[str, Any]:
         """
         List things with pagination
 
         Args:
             page: 1-based page number
-            page_size: Number of items per page
-            sort_by: Field to sort by (e.g., "label", "thingTypeUID")
-            sort_order: Sort order ("asc" or "desc")
+            page_size: Number of items per page (default: 50)
+            sort_order: Sort by UID in ascending or descending order ("asc" or "desc")
 
         Returns:
             PaginatedThings object containing the paginated results and pagination info
@@ -365,22 +519,15 @@ class OpenHABClient:
         response.raise_for_status()
 
         # Convert to Thing objects
-        things = [Thing(**thing) for thing in response.json()]
+        things = json.loads(response.text)
+        for thing in things:
+            thing.pop('channels', None)
 
         # Sort the things
         reverse_sort = sort_order.lower() == "desc"
-        try:
-            things.sort(
-                key=lambda x: (
-                    str(getattr(x, sort_by, "")).lower() if hasattr(x, sort_by) else ""
-                ),
-                reverse=reverse_sort,
-            )
-        except Exception as e:
-            # Fallback to default sort if the requested sort field doesn't exist
-            things.sort(
-                key=lambda x: str(x.UID).lower() if x.UID else "", reverse=reverse_sort
-            )
+        things.sort(
+            key=lambda x: str(x["UID"]).lower() if x["UID"] else "", reverse=reverse_sort
+        )
 
         # Calculate pagination
         total_elements = len(things)
@@ -393,33 +540,48 @@ class OpenHABClient:
         # Get the page of items
         paginated_items = things[start_idx:end_idx]
 
-        return PaginatedThings(
-            things=paginated_items,
-            pagination=PaginationInfo(
-                total_elements=total_elements,
-                page=page,
-                page_size=page_size,
-                total_pages=total_pages,
-                has_next=end_idx < total_elements,
-                has_previous=start_idx > 0,
-            ),
-        )
+        return {
+            "things": paginated_items,
+            "pagination": {
+                "total_elements": total_elements,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+                "has_next": end_idx < total_elements,
+                "has_previous": start_idx > 0,
+            },
+        }
 
-    def get_thing_details(self, thing_uid: str) -> Optional[ThingDetails]:
-        """Get a specific thing by UID"""
+    def get_thing_channels(self, thing_uid: str, linked_only: bool = False) -> Optional[List[Dict[str, Any]]]:
+        """Get the channels of a specific thing by UID
+        
+        Args:
+            thing_uid: The UID of the thing
+            linked_only: If True, only return channels with linked items
+                        If False, return all channels (default)
+                        
+        Returns:
+            List of channel dictionaries, or None if thing not found
+        """
         if thing_uid is None:
             return None
 
         try:
             response = self.session.get(f"{self.base_url}/rest/things/{thing_uid}")
             response.raise_for_status()
-            return ThingDetails(**response.json())
+            channels = json.loads(response.text).get("channels", [])
+            
+            if linked_only:
+                return [channel for channel in channels if channel.get("linkedItems")]
+            
+            return channels
+        
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
             raise
 
-    def create_thing(self, thing: Thing) -> ThingDetails:
+    def create_thing(self, thing: Thing) -> Dict[str, Any]:
         """Create a new thing"""
 
         if not thing.thingTypeUID:
@@ -456,12 +618,24 @@ class OpenHABClient:
         response.raise_for_status()
 
         # Get the created thing
-        return self.get_thing_details(thing.UID)
+        return next(
+            iter(
+                thing
+                for thing in self.list_things(filter_uid=thing.UID, page_size=1)["things"]
+            ),
+            None,
+        )
 
-    def update_thing(self, thing: ThingDetails) -> ThingDetails:
+    def update_thing(self, thing: Thing) -> Dict[str, Any]:
         """Update an existing thing"""
         # Get current thing to merge with updates
-        current_thing = self.get_thing_details(thing.UID)
+        current_thing = next(
+            iter(
+                thing
+                for thing in self.list_things(filter_uid=thing.UID, page_size=1)["things"]
+            ),
+            None,
+        )
         if not current_thing:
             raise ValueError(f"Thing with UID '{thing.UID}' not found")
 
@@ -469,10 +643,10 @@ class OpenHABClient:
         payload = {
             "thingTypeUID": thing.thingTypeUID,
             "UID": thing.UID,
-            "label": thing.label or current_thing.label,
-            "configuration": thing.configuration or current_thing.configuration,
-            "properties": thing.properties or current_thing.properties,
-            "channels": thing.channels or current_thing.channels,
+            "label": thing.label or current_thing["label"],
+            "configuration": thing.configuration or current_thing["configuration"],
+            "properties": thing.properties or current_thing["properties"],
+            "channels": thing.channels or current_thing["channels"],
         }
 
         response = self.session.put(
@@ -481,14 +655,20 @@ class OpenHABClient:
         response.raise_for_status()
 
         # Get the updated thing
-        return self.get_thing_details(thing.UID)
+        return next(
+            iter(
+                thing
+                for thing in self.list_things(filter_uid=thing.UID, page_size=1)["things"]
+            ),
+            None,
+        )
 
     def delete_thing(self, thing_uid: str) -> bool:
         """Delete a thing"""
         response = self.session.delete(f"{self.base_url}/rest/things/{thing_uid}")
 
         if response.status_code == 404:
-            raise ValueError(f"Thing with UID '{thing_uid}' not found")
+            raise KeyError(f"Thing with UID '{thing_uid}' not found")
 
         response.raise_for_status()
         return True
@@ -497,17 +677,15 @@ class OpenHABClient:
         self,
         page: int = 1,
         page_size: int = 15,
-        sort_by: str = "name",
         sort_order: str = "asc",
         filter_tag: Optional[str] = None,
-    ) -> PaginatedRules:
+    ) -> Dict[str, Any]:
         """
         List all rules, optionally filtered by tag
 
         Args:
             page: 1-based page number (default: 1)
             page_size: Number of elements per page (default: 15)
-            sort_by: Field to sort by (e.g., "name", "label") (default: "name")
             sort_order: Sort order ("asc" or "desc") (default: "asc")
             filter_tag: Tag to filter rules by (default: None)
         """
@@ -520,23 +698,14 @@ class OpenHABClient:
         response = self.session.get(f"{self.base_url}/rest/rules", params=params)
         response.raise_for_status()
 
-        rules = [Rule(**rule) for rule in response.json()]
+        rules = json.loads(response.text)
 
         # Sort the rules
         reverse_sort = sort_order.lower() == "desc"
-        try:
-            rules.sort(
-                key=lambda x: (
-                    str(getattr(x, sort_by, "")).lower() if hasattr(x, sort_by) else ""
-                ),
-                reverse=reverse_sort,
-            )
-        except Exception:
-            # Fallback to default sort if the requested sort field doesn't exist
-            rules.sort(
-                key=lambda x: str(x.name).lower() if x.name else "",
-                reverse=reverse_sort,
-            )
+        rules.sort(
+            key=lambda x: str(x["name"]).lower() if x["name"] else "",
+            reverse=reverse_sort,
+        )
 
         # Calculate pagination
         total_elements = len(rules)
@@ -549,19 +718,19 @@ class OpenHABClient:
         # Get the page of rules
         paginated_rules = rules[start_idx:end_idx]
 
-        return PaginatedRules(
-            rules=paginated_rules,
-            pagination=PaginationInfo(
-                total_elements=total_elements,
-                page=page,
-                page_size=page_size,
-                total_pages=total_pages,
-                has_next=end_idx < total_elements,
-                has_previous=start_idx > 0,
-            ),
-        )
+        return {
+            "rules": paginated_rules,
+            "pagination": {
+                "total_elements": total_elements,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+                "has_next": end_idx < total_elements,
+                "has_previous": start_idx > 0,
+            },
+        }
 
-    def get_rule_details(self, rule_uid: str) -> Optional[RuleDetails]:
+    def get_rule_details(self, rule_uid: str) -> Optional[Dict[str, Any]]:
         """Get a specific rule by UID"""
         if rule_uid is None:
             return None
@@ -569,21 +738,18 @@ class OpenHABClient:
         try:
             response = self.session.get(f"{self.base_url}/rest/rules/{rule_uid}")
             response.raise_for_status()
-            return RuleDetails(**response.json())
+            return json.loads(response.text)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
             raise
 
-    def update_rule(self, rule_uid: str, rule_updates: Dict[str, Any]) -> RuleDetails:
+    def update_rule(self, rule_uid: str, rule_updates: Dict[str, Any]) -> Dict[str, Any]:
         """Update an existing rule with partial updates"""
         # Check if rule exists
         current_rule = self.get_rule_details(rule_uid)
         if not current_rule:
             raise ValueError(f"Rule with UID '{rule_uid}' not found")
-
-        # Get the current rule as a dictionary
-        current_rule_dict = current_rule.model_dump()
 
         # Merge with updates (only updating provided fields)
         for key, value in rule_updates.items():
@@ -592,24 +758,24 @@ class OpenHABClient:
                 for updated_action in value:
                     if "id" in updated_action:
                         # Find the matching action by ID and update it
-                        for i, action in enumerate(current_rule_dict["actions"]):
+                        for i, action in enumerate(current_rule["actions"]):
                             if action["id"] == updated_action["id"]:
                                 # Update this specific action
-                                current_rule_dict["actions"][i].update(updated_action)
+                                current_rule["actions"][i].update(updated_action)
                                 break
                         else:
                             # If no matching action found, append it
-                            current_rule_dict["actions"].append(updated_action)
+                            current_rule["actions"].append(updated_action)
                     else:
                         # No ID provided, just append the action
-                        current_rule_dict["actions"].append(updated_action)
+                        current_rule["actions"].append(updated_action)
             else:
                 # For other fields, just update directly
-                current_rule_dict[key] = value
+                current_rule[key] = value
 
         # Send update request
         response = self.session.put(
-            f"{self.base_url}/rest/rules/{rule_uid}", json=current_rule_dict
+            f"{self.base_url}/rest/rules/{rule_uid}", json=current_rule
         )
         response.raise_for_status()
 
@@ -618,7 +784,7 @@ class OpenHABClient:
 
     def update_rule_script_action(
         self, rule_uid: str, action_id: str, script_type: str, script_content: str
-    ) -> RuleDetails:
+    ) -> Dict[str, Any]:
         """Update a script action in a rule"""
         # Prepare the action update
         action_update = {
@@ -633,7 +799,7 @@ class OpenHABClient:
         # Update the rule with just this action
         return self.update_rule(rule_uid, {"actions": [action_update]})
 
-    def create_rule(self, rule: RuleDetails) -> RuleDetails:
+    def create_rule(self, rule: RuleDetails) -> Dict[str, Any]:
         """Create a new rule"""
         if not rule.uid:
             if self.generate_uids:
@@ -665,27 +831,24 @@ class OpenHABClient:
         self,
         page: int = 1,
         page_size: int = 15,
-        sort_by: str = "name",
         sort_order: str = "asc",
-    ) -> PaginatedRules:
+    ) -> Dict[str, Any]:
         """
         List all scripts. A script is a rule without a trigger and tag of 'Script'
 
         Args:
             page: 1-based page number (default: 1)
             page_size: Number of elements per page (default: 15)
-            sort_by: Field to sort by (e.g., "name", "label") (default: "name")
             sort_order: Sort order ("asc" or "desc") (default: "asc")
         """
         return self.list_rules(
             page=page,
             page_size=page_size,
-            sort_by=sort_by,
             sort_order=sort_order,
             filter_tag="Script",
         )
 
-    def get_script_details(self, script_id: str) -> Optional[RuleDetails]:
+    def get_script_details(self, script_id: str) -> Dict[str, Any]:
         """Get a specific script by ID. A script is a rule without a trigger and tag of 'Script'"""
         if script_id is None:
             return None
@@ -694,7 +857,7 @@ class OpenHABClient:
 
     def create_script(
         self, script_id: str, script_type: str, content: str
-    ) -> RuleDetails:
+    ) -> Dict[str, Any]:
         """Create a new script.  A script is a rule without a trigger and tag of 'Script'"""
         if not content:
             raise ValueError("Script content cannot be empty")
@@ -725,7 +888,7 @@ class OpenHABClient:
 
     def update_script(
         self, script_id: str, script_type: str, content: str
-    ) -> RuleDetails:
+    ) -> Dict[str, Any]:
         """Update an existing script. A script is a rule without a trigger and tag of 'Script'"""
         rule = self.get_rule_details(script_id)
         # Check if script exists
@@ -733,7 +896,7 @@ class OpenHABClient:
             raise ValueError(f"Script with ID '{script_id}' not found")
 
         return self.update_rule_script_action(
-            script_id, rule.actions[0].id, script_type, content
+            script_id, rule["actions"][0]["id"], script_type, content
         )
 
     def delete_script(self, script_id: str) -> bool:
@@ -758,30 +921,33 @@ class OpenHABClient:
         response.raise_for_status()
         return True
 
-    def list_tags(self, parent_tag_uid: Optional[str] = None) -> List[Tag]:
+    def list_tags(self, parent_tag_uid: Optional[str] = None, category: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         List all tags
 
         Args:
+            category: If provided, only return tags that belong to this category of tags (Location, Equipment, Point or Property)
             parent_tag_uid: If provided, only return tags that are a subtag of this tag
 
         Returns:
-            List of tags
+            List of tag dictionaries
         """
         response = self.session.get(f"{self.base_url}/rest/tags")
         response.raise_for_status()
 
-        tags = [Tag(**tag) for tag in response.json()]
+        tags = json.loads(response.text)
+
+        if category:
+            tags = [tag for tag in tags if tag['uid'].lower().startswith(category.lower())]
 
         if parent_tag_uid:
-            tags = [tag for tag in tags if tag.uid and tag.uid.lower().startswith(f"{parent_tag_uid.lower()}_")]
+            tags = [tag for tag in tags 
+                   if tag['uid'] and tag['uid'].lower().startswith(f"{parent_tag_uid.lower()}_")]
 
         return tags
 
-    def create_tag(self, tag: Tag) -> Tag:
-        """Create a new tag"""
-
-        tag.raise_for_errors()
+    def create_semantic_tag(self, tag: Tag) -> Dict[str, Any]:
+        """Create a new semantic tag"""
 
         if self.get_tag(tag.uid):
             raise ValueError(f"Tag with UID '{tag.uid}' already exists")
@@ -792,9 +958,9 @@ class OpenHABClient:
         response.raise_for_status()
 
         # Get the created tag
-        return self.get_tag(tag.uid)
+        return next(iter(self.get_tag(tag.uid)))
 
-    def get_tag(self, tag_uid: str) -> Optional[Tag]:
+    def get_tag(self, tag_uid: str, include_subtags: bool = False) -> Optional[List[Dict[str, Any]]]:
         """Get a specific tag by uid"""
         if tag_uid is None:
             return None
@@ -803,8 +969,12 @@ class OpenHABClient:
             response = self.session.get(f"{self.base_url}/rest/tags/{tag_uid}")
             response.raise_for_status()
 
-            tags = [Tag(**tag) for tag in response.json()]
-            return next((tag for tag in tags if tag.uid == tag_uid), None)
+            tags = json.loads(response.text)
+
+            if not include_subtags:
+                tags = [tag for tag in tags if tag['uid'] == tag_uid]
+
+            return tags
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
@@ -827,7 +997,7 @@ class OpenHABClient:
         page_size: int = 15,
         sort_order: str = "asc",
         item_name: Optional[str] = None,
-    ) -> PaginatedLinks:
+    ) -> Dict[str, Any]:
         """
         List links with pagination
 
@@ -850,12 +1020,12 @@ class OpenHABClient:
         response.raise_for_status()
 
         # Convert to Link objects
-        links = [Link(**link) for link in response.json()]
+        links = json.loads(response.text)
 
         # Sort the links
         reverse_sort = sort_order.lower() == "desc"
         links.sort(
-            key=lambda x: str(x.itemName + x.channelUID).lower(), reverse=reverse_sort
+            key=lambda x: str(x['itemName'] + x['channelUID']).lower(), reverse=reverse_sort
         )
 
         # Calculate pagination
@@ -863,29 +1033,25 @@ class OpenHABClient:
         total_pages = (
             (total_elements + page_size - 1) // page_size if page_size > 0 else 1
         )
-        print("Page: " + str(page))
-        print("Page size: " + str(page_size))
-        print("Total elements: " + str(total_elements))
-        print("Total pages: " + str(total_pages))
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
 
         # Get the page of links
         paginated_links = links[start_idx:end_idx]
 
-        return PaginatedLinks(
-            links=paginated_links,
-            pagination=PaginationInfo(
-                total_elements=total_elements,
-                page=page,
-                page_size=page_size,
-                total_pages=total_pages,
-                has_next=end_idx < total_elements,
-                has_previous=start_idx > 0,
-            ),
-        )
+        return {
+            "links": paginated_links,
+            "pagination": {
+                "total_elements": total_elements,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+                "has_next": end_idx < total_elements,
+                "has_previous": start_idx > 0
+            }
+        }
 
-    def get_link(self, item_name: str, channel_uid: str) -> Optional[Link]:
+    def get_link(self, item_name: str, channel_uid: str) -> Optional[Dict[str, Any]]:
         """Get a specific link by item name and channel UID"""
         if item_name is None or channel_uid is None:
             return None
@@ -896,7 +1062,7 @@ class OpenHABClient:
             )
             response.raise_for_status()
 
-            return Link(**response.json())
+            return json.loads(response.text)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
@@ -957,3 +1123,45 @@ class OpenHABClient:
             if e.response.status_code == 404:
                 return False
             raise
+
+    def get_item_persistence(
+        self, item_name: str, starttime: str = None, endtime: str = None
+    ) -> ItemPersistence:
+        """
+        Get the persistence state values of an item between starttime and endtime
+        in zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
+        """
+
+        if not item_name:
+            raise ValueError("Item name must be provided")
+
+        params = {}
+        if starttime:
+            if not DATE_PATTERN.match(starttime):
+                raise ValueError(f"Start time must be in format {DATE_PATTERN.pattern}")
+            params["starttime"] = starttime
+
+        if endtime:
+            if not DATE_PATTERN.match(endtime):
+                raise ValueError(f"End time must be in format {DATE_PATTERN.pattern}")
+            params["endtime"] = endtime
+
+        try:
+            response = self.session.get(
+                f"{self.base_url}/rest/persistence/items/{item_name}", params=params
+            )
+            response.raise_for_status()
+            return ItemPersistence(**response.json())
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
+
+    def delete_item(self, item_name: str) -> bool:
+        """Delete an item"""
+        response = self.session.delete(f"{self.base_url}/rest/items/{item_name}")
+
+        if response.status_code == 404:
+            raise ValueError(f"Item with name '{item_name}' not found")
+        response.raise_for_status()
+        return True
