@@ -38,11 +38,11 @@ class CustomBaseModel(BaseModel):
             model = handler(data)
             model.after_model_validations()
             return model
-        except (ValidationError, ValueError) as err:
-            error = ErrorModel(classname=cls.__name__, message=f"Input validation failed: {str(err)}")
+        except (Exception) as err:
+            error = ErrorModel(classname=cls.__name__, message=f"Input validation failed: {str(err)}", errors=[])
             if isinstance(err, ValidationError):
-                for error in err.errors():
-                    error.errors.append(ErrorValue(value=error['input'], message=error['msg']))
+                for validation_error in err.errors():
+                    error.errors.append(ErrorValue(value=validation_error['input'], message=validation_error['msg']))
             return error
 
     @override
@@ -147,7 +147,7 @@ class Tag(CustomBaseModel):
     uid: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
     category: Annotated[TagCategoryEnum, Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
     parentuid: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
-    name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    name: Annotated[str, Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
     label: Annotated[str, Field(required=True, default=""), WrapValidator(handle_error_gracefully)]
     description: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
     synonyms: Annotated[List[str], Field(required=False, default_factory=list), WrapValidator(handle_error_gracefully)]
@@ -169,6 +169,11 @@ class Tag(CustomBaseModel):
                     else:
                         category = data['uid']
                     data.update({'category': category})
+                
+                if "_" in data['uid'] and not data.get('name'):
+                    data.update({'name': data['uid'].split('_')[-1]})
+                elif "_" not in data['uid'] and not data.get('name'):
+                    data.update({'name': data['uid']})
         return data
 
     @override
