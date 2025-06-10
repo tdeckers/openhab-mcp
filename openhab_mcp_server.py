@@ -183,6 +183,16 @@ def create_item_metadata(
     except Exception as e:
         return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
 
+@mcp.tool()
+def delete_item_metadata(
+    item_name: str = Field(description="Name of the item to delete metadata for"),
+    namespace: str = Field(description="Namespace of the metadata"),
+) -> bool:
+    """Delete metadata for a specific openHAB item"""
+    try:
+        return openhab_client.delete_item_metadata(item_name, namespace)
+    except Exception as e:
+        return {"isError": True, "content": [TextContent(type="text", text=str(e))]} 
 
 @mcp.tool()
 def update_item_metadata(

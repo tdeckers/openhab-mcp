@@ -324,6 +324,39 @@ class OpenHABClient:
             None,
         )
     
+    def delete_item_metadata(self, item_name: str, namespace: str) -> bool:
+        """Delete metadata for a specific item"""
+        # Get the item using list_items with name filter
+        result = self.list_items(filter_name=item_name, page_size=1)
+        if not result["items"]:
+            raise KeyError(f"Item with name '{item_name}' not found")
+        item = next(
+            (
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
+
+        if "metadata" in item and namespace not in item["metadata"]:
+            raise KeyError(
+                f"Namespace '{namespace}' does not exist for item '{item_name}'"
+            )
+
+        response = self.session.delete(
+            f"{self.base_url}/rest/items/{item_name}/metadata/{namespace}"
+        )
+        response.raise_for_status()
+
+        # Get the updated item using list_items with name filter
+        return next(
+            iter(
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
+    
     def delete_item_semantic_tag(self, item_name: str, tag_uid: str) -> bool:
         """Delete semantic tag for a specific item"""
         # Get the item using list_items with name filter
