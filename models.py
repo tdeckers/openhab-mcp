@@ -212,7 +212,7 @@ class StateDescription(CustomBaseModel):
     options: Optional[List[StateOptions]] = None
 
 class Item(CustomBaseModel):
-    type: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
+    type: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
     name: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
     label: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
     category: Annotated[Optional[str], Field(required=False, default=None), WrapValidator(handle_error_gracefully)]
@@ -232,6 +232,9 @@ class Item(CustomBaseModel):
             if self.name and self.name[0].isdigit():
                 raise ValueError("Item 'name' may not start with a digit.")
         return self
+
+class CreateItem(Item):
+    type: Annotated[str, Field(required=True), WrapValidator(handle_error_gracefully)]
 
 class DataPoint(NamedTuple):
     time: int

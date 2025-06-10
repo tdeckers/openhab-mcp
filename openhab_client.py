@@ -8,11 +8,11 @@ import json
 
 from models import (
     Item,
+    CreateItem,
     ItemMetadata,
     Link,
     Thing,
     Tag,
-    PaginationInfo,
     RuleDetails,
     ItemPersistence,
 )
@@ -200,7 +200,7 @@ class OpenHABClient:
             }
         }
 
-    def create_item(self, item: Item) -> Item:
+    def create_item(self, item: CreateItem) -> Dict[str, Any]:
         """Create a new item"""
 
         item.raise_for_errors()

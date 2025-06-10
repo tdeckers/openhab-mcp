@@ -23,6 +23,7 @@ from mcp.types import TextContent
 
 # Import our modules
 from models import (
+    CreateItem,
     Item,
     ItemMetadata,
     Link,
@@ -223,14 +224,14 @@ def get_create_item_schema() -> Dict[str, Any]:
     """
     Get the JSON schema for creating an item.
     """
-    schema = Item.model_json_schema()
+    schema = CreateItem.model_json_schema()
     schema = _set_additional_properties_false(schema)
     return schema
 
 
 @mcp.tool()
 def create_item(
-    item: Item = Field(description="Item details to create"),
+    item: CreateItem = Field(description="Item details to create"),
 ) -> Dict[str, Any]:
     """Create a new openHAB item"""
     try:
