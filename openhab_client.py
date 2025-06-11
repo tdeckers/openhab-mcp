@@ -1054,6 +1054,12 @@ class OpenHABClient:
 
         # Convert to Link objects
         links = json.loads(response.text)
+        for link in links:
+            match = re.match(r".*(?=:)", link["channelUID"])
+            if match:
+                link["thing_uid"] = match.group()
+            else:
+                link["thing_uid"] = None
 
         # Sort the links
         reverse_sort = sort_order.lower() == "desc"
