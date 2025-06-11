@@ -178,6 +178,9 @@ def create_item_metadata(
 ) -> Dict[str, Any]:
     """Create new metadata for a specific openHAB item"""
     try:
+        # Validate that the namespace is not 'semantics'
+        if namespace == "semantics":
+            raise ValueError("The 'semantics' namespace is a reserved namespace for openHAB semantic tags. Please assign tags to change the item semantics.")
         metadata.raise_for_errors()
         return openhab_client.create_item_metadata(item_name, namespace, metadata)
     except Exception as e:
@@ -190,6 +193,9 @@ def delete_item_metadata(
 ) -> bool:
     """Delete metadata for a specific openHAB item"""
     try:
+        # Validate that the namespace is not 'semantics'
+        if namespace == "semantics":
+            raise ValueError("The 'semantics' namespace is a reserved namespace for openHAB semantic tags. Please assign tags to change the item semantics.")
         return openhab_client.delete_item_metadata(item_name, namespace)
     except Exception as e:
         return {"isError": True, "content": [TextContent(type="text", text=str(e))]} 
