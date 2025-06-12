@@ -517,7 +517,6 @@ class OpenHABClient:
     def update_item_state(self, item_name: str, state: str) -> Dict[str, Any]:
         """Update just the state of an item"""
         # Check if item exists using list_items with name filter
-        result = self.list_items(filter_name=item_name, page_size=1)
         if not next(
             iter(
                 item
