@@ -294,7 +294,7 @@ def update_item_state(
     item_name: str = Field(description="Name of the item to update state for"),
     state: str = Field(
         description="State to update the item to as string. Type conversion must be possible for the item type",
-        examples=["ON", "OFF", "140.5", "14%", "20 kWH", "2025-06-03T22:21:13.123Z", "Text"],
+        examples=["ON", "OFF", "140.5", "14%", "20 kWH", "2025-06-03T22:21:13.123Z", "This is a text"],
     ),
 ) -> Dict[str, Any]:
     """

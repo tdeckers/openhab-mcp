@@ -174,9 +174,6 @@ class OpenHABClient:
                 
             # Process the item and its members
             processed_item = self._process_member(item, output_fields, tags)
-            for processed_item in processed_item:
-                if "metadata" in processed_item and "semantics" in processed_item["metadata"]:
-                    processed_item["metadata"]["semantics"]["editable"] = False
             processed_items.append(processed_item)
         
         # Apply sorting
