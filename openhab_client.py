@@ -174,6 +174,9 @@ class OpenHABClient:
                 
             # Process the item and its members
             processed_item = self._process_member(item, output_fields, tags)
+            for processed_item in processed_item:
+                if "metadata" in processed_item and "semantics" in processed_item["metadata"]:
+                    processed_item["metadata"]["semantics"]["editable"] = False
             processed_items.append(processed_item)
         
         # Apply sorting
@@ -515,7 +518,13 @@ class OpenHABClient:
         """Update just the state of an item"""
         # Check if item exists using list_items with name filter
         result = self.list_items(filter_name=item_name, page_size=1)
-        if not result["items"]:
+        if not next(
+            iter(
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        ):
             raise KeyError(f"Item with name '{item_name}' not found")
 
         # Update state
@@ -527,9 +536,14 @@ class OpenHABClient:
         response.raise_for_status()
 
         # Get the updated item using list_items with name filter
-        result = self.list_items(filter_name=item_name, page_size=1)
-        return result["items"][0].model_dump()
-
+        return next(
+            iter(
+                item
+                for item in self.list_items(filter_name=item_name, page_size=1)["items"]
+            ),
+            None,
+        )
+ 
     def list_things(
         self,
         page: int = 1,
