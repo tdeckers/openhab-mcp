@@ -206,6 +206,8 @@ class OpenHABClient:
         item.raise_for_errors()
 
         payload = item.model_dump()
+        
+        # Handle tags
         payload["tags"] = []
         if "semantic_tags" in payload:
             payload["tags"] += [tag.name for tag in payload["semantic_tags"]]
@@ -213,6 +215,12 @@ class OpenHABClient:
         if "non_semantic_tags" in payload:
             payload["tags"] += payload["non_semantic_tags"]
             del payload["non_semantic_tags"]
+        
+        # Remove None values and empty lists from payload
+        payload = {
+            k: v for k, v in payload.items() 
+            if v is not None and not (isinstance(v, (list, dict)) and not v)
+        }
 
         response = self.session.put(
             f"{self.base_url}/rest/items/{item.name}", json=payload
