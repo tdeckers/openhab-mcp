@@ -1,39 +1,24 @@
 version: '3.8'
 
 services:
-  openhab:
-    image: openhab/openhab:latest
-    ports:
-      - "18080:8080"
-    environment:
-      - OPENHAB_HTTP_PORT=8080
-      - EXTRA_JAVA_OPTS=-Duser.timezone=UTC
-    volumes:
-      - ./docker/openhab/conf:/openhab/conf
-      - ./docker/openhab/userdata:/openhab/userdata
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/rest"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - openhab-network
-
   openhab-mcp:
     build: .
+    container_name: openhab-mcp
+    restart: unless-stopped
     ports:
-      - "8081:8080"  # Changed to 8081 to avoid conflict with OpenHAB
+      - "8080:8080"
     environment:
-      - OPENHAB_URL=http://openhab:8080
+      - OPENHAB_URL=${OPENHAB_URL:-http://openhab:8080}
       - OPENHAB_API_TOKEN=${OPENHAB_API_TOKEN:-}
       - OPENHAB_USERNAME=${OPENHAB_USERNAME:-}
       - OPENHAB_PASSWORD=${OPENHAB_PASSWORD:-}
-    depends_on:
-      openhab:
-        condition: service_healthy
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./process_template_override:/app/process_templates/override
     networks:
       - openhab-network
 
 networks:
   openhab-network:
     driver: bridge
+    name: openhab-network

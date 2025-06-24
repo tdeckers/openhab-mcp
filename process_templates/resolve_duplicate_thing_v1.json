@@ -1,0 +1,122 @@
+{
+  "metadata": {
+    "id": "resolve_duplicate_thing_v1",
+    "name": "Resolve Duplicate Thing in Inbox",
+    "description": "Identify and resolve duplicate things in the openHAB inbox that represent the same physical device but have different representation properties.",
+    "tags": ["inbox", "duplicate", "thing", "migration"],
+    "version": "1.0.0",
+    "author": "Thomas Lauterbach",
+    "created": "2025-06-24",
+    "last_updated": "2025-06-24T07:51:13+02:00"
+  },
+  "requires": [
+    "openhab_mcp>=0.1.0",
+    "mcp_tools:list_inbox_things",
+    "mcp_tools:list_things",
+    "mcp_tools:get_thing",
+    "mcp_tools:approve_inbox_thing",
+    "mcp_tools:delete_inbox_thing",
+    "mcp_tools:ignore_inbox_thing",
+    "mcp_tools:unignore_inbox_thing"
+  ],
+  "input": [
+    {
+      "name": "inbox_thing_uid",
+      "type": "string",
+      "description": "UID of the thing in the inbox",
+      "required": true,
+      "examples": ["zwave:device:controller:node4"]
+    },
+    {
+      "name": "existing_thing_uid",
+      "type": "string",
+      "description": "UID of the existing thing that might be a duplicate",
+      "required": true,
+      "examples": ["zwave:device:controller:node12"]
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "get_inbox_thing",
+      "action": "get_thing",
+      "target": "inbox_thing",
+      "description": "Retrieve details of the inbox thing",
+      "parameters": {
+        "thing_uid": "{{inbox_thing_uid}}"
+      },
+      "on_fail": {
+        "condition": "not_found",
+        "action": "ask_user",
+        "message": "Inbox thing with ID {{inbox_thing_uid}} not found. Please check the UID and try again."
+      }
+    },
+    {
+      "step_id": "get_existing_thing",
+      "action": "get_thing",
+      "target": "existing_thing",
+      "description": "Retrieve details of the existing thing",
+      "parameters": {
+        "thing_uid": "{{existing_thing_uid}}"
+      },
+      "on_fail": {
+        "condition": "not_found",
+        "action": "ask_user",
+        "message": "Existing thing with ID {{existing_thing_uid}} not found. Please check the UID and try again."
+      }
+    },
+    {
+      "step_id": "compare_thing_properties",
+      "action": "compare_thing_properties",
+      "description": "Compare properties of both things to confirm they represent the same device",
+      "parameters": {
+        "inbox_thing": "{{inbox_thing}}",
+        "existing_thing": "{{existing_thing}}"
+      },
+      "confirmation": {
+        "message": "Do these things appear to be the same physical device?",
+        "required": true
+      }
+    },
+    {
+      "step_id": "get_representation_property",
+      "action": "get_representation_property",
+      "description": "Get the representation property of the inbox thing",
+      "parameters": {
+        "inbox_thing": "{{inbox_thing}}"
+      },
+      "on_fail": {
+        "condition": "action_failed",
+        "action": "ask_user",
+        "message": "Getting the representation property of the inbox thing failed. Please try again."
+      }
+    },
+    {
+      "step_id": "update_thing_represenatation_property",
+      "action": "update_thing_represenatation_property",
+      "description": "Resolve the duplicate by setting the representation property of the existing thing to the one provided by the inbox thing",
+      "parameters": {
+        "inbox_thing": "{{inbox_thing}}",
+        "existing_thing": "{{existing_thing}}"
+      },
+      "on_fail": {
+        "condition": "action_failed",
+        "action": "ask_user",
+        "message": "Updating the representation property of the existing thing failed. Please try again."
+      }
+    }
+  ],
+  "examples": [
+    {
+      "name": "Update existing thing with inbox version",
+      "description": "When you want to update the existing thing with the inbox version representation property",
+      "input": {
+        "inbox_thing_uid": "zwave:device:controller:node4",
+        "existing_thing_uid": "zwave:device:controller:node12"
+      },
+      "expected_output": {
+        "status": "completed",
+        "message": "Successfully updated the existing thing with the inbox version."
+      }
+    }
+  ]
+}

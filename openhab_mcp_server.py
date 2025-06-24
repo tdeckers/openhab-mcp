@@ -15,21 +15,27 @@ from dotenv import load_dotenv
 from pydantic import Field
 
 # Configure logging to suppress INFO messages
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # Import the MCP server implementation
 from mcp.server import FastMCP
 from mcp.types import TextContent
 
+from template_manager import TemplateManager, ProcessTemplate
+
+template_manager = TemplateManager()
+
 # Import our modules
 from models import (
-    CreateItem,
-    Item,
+    ItemCreate,
+    ItemUpdate,
     ItemMetadata,
     Link,
     Tag,
-    Thing,
-    RuleDetails,
+    ThingCreate,
+    ThingUpdate,
+    RuleCreate,
+    RuleUpdate,
 )
 from openhab_client import OpenHABClient
 
@@ -46,11 +52,6 @@ OPENHAB_URL = os.environ.get("OPENHAB_URL", "http://localhost:8080")
 OPENHAB_API_TOKEN = os.environ.get("OPENHAB_API_TOKEN")
 OPENHAB_USERNAME = os.environ.get("OPENHAB_USERNAME")
 OPENHAB_PASSWORD = os.environ.get("OPENHAB_PASSWORD")
-OPENHAB_GENERATE_UIDS = os.environ.get("OPENHAB_GENERATE_UIDS", "false").lower() in [
-    "true",
-    "1",
-    "t",
-]
 OPENHAB_MCP_TRANSPORT = os.environ.get("OPENHAB_MCP_TRANSPORT", "stdio")
 
 if OPENHAB_MCP_TRANSPORT == "streamable-http":
@@ -74,196 +75,102 @@ openhab_client = OpenHABClient(
     api_token=OPENHAB_API_TOKEN,
     username=OPENHAB_USERNAME,
     password=OPENHAB_PASSWORD,
-    generate_uids=OPENHAB_GENERATE_UIDS,
 )
 
 
-def _set_additional_properties_false(schema: dict) -> Dict[str, Any]:
-    """
-    Recursively sets additionalProperties to False for all objects in a JSON schema.
-    
-    Args:
-        schema: The JSON schema to modify
-        
-    Returns:
-        The modified schema with additionalProperties set to False
-    """
-    if not isinstance(schema, dict):
-        return schema
-        
-    # Create a new dict to avoid modifying the original during iteration
-    result = {}
-    
-    for key, value in schema.items():
-        if key == 'additionalProperties' and isinstance(schema, dict):
-            result[key] = False
-        elif isinstance(value, dict):
-            result[key] = _set_additional_properties_false(value)
-        elif isinstance(value, list):
-            result[key] = [
-                _set_additional_properties_false(item) if isinstance(item, dict) else item 
-                for item in value
-            ]
-        else:
-            result[key] = value
-    
-    return result
-
-
+# Item Tools
 @mcp.tool()
 def list_items(
     page: int = Field(
+        1,
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
-        default=1,
     ),
-    page_size: int = Field(description="Number of elements shown per page", default=50),
-    sort_order: str = Field(
-        description="Sort order", examples=["asc", "desc"], default="asc"
-    ),
+    page_size: int = Field(15, description="Number of elements shown per page"),
+    sort_order: str = Field("asc", description="Sort order", examples=["asc", "desc"]),
     filter_tag: str = Field(
+        "",
         description="Optional filter items by tag (either a non-semantic tag or the name of a semantic tag). All available semantic tags can be retrieved from the `list_tags` tool",
         examples=["Location", "Window", "Light", "FrontDoor"],
-        default="",
     ),
     filter_type: str = Field(
+        "",
         description="Optional filter items by type",
         examples=["Switch", "Group", "String", "DateTime"],
-        default="",
     ),
     filter_name: str = Field(
+        "",
         description="Optional filter items by name. All items that contain the filter value in their name are returned",
         examples=["Kitchen", "LivingRoom", "Bedroom"],
-        default="",
     ),
     filter_fields: List[str] = Field(
+        [],
         description="Optional filter items by fields. Item name will always be included by default.",
         examples=["name", "label", "type", "semantic_tags", "non_semantic_tags"],
-        default=[],
     ),
 ) -> Dict[str, Any]:
     """
     Gives a list of openHAB items with only basic information. Use this tool
     to get an overview of your items. Use the `get_item_details` tool to get
     more information about a specific item.
+
+    Args:
+        page: Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true
+        page_size: Number of elements shown per page
+        sort_order: Sort order
+        filter_tag: Optional filter items by tag (either a non-semantic tag or the name of a semantic tag). All available semantic tags can be retrieved from the `list_tags` tool
+        filter_type: Optional filter items by type
+        filter_name: Optional filter items by name. All items that contain the filter value in their name are returned
+        filter_fields: Optional filter items by fields. Item name will always be included by default.
     """
-    try:
-        return openhab_client.list_items(
-            page=page,
-            page_size=page_size,
-            sort_order=sort_order,
-            filter_tag=filter_tag,
-            filter_type=filter_type,
-            filter_name=filter_name,
-            filter_fields=filter_fields,
-        )
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.list_items(
+        page=page,
+        page_size=page_size,
+        sort_order=sort_order,
+        filter_tag=filter_tag,
+        filter_type=filter_type,
+        filter_name=filter_name,
+        filter_fields=filter_fields,
+    )
 
 
 @mcp.tool()
-def get_create_item_metadata_schema() -> Dict[str, Any]:
-    """
-    Get the JSON schema for creating item metadata.
-    """
-    schema = ItemMetadata.model_json_schema()
-    schema = _set_additional_properties_false(schema)
-    return schema
-
-
-@mcp.tool()
-def create_item_metadata(
-    item_name: str = Field(description="Name of the item to create metadata for"),
-    namespace: str = Field(description="Namespace of the metadata"),
-    metadata: ItemMetadata = Field(description="Metadata to create"),
+def get_item(
+    item_name: str = Field(..., description="Name of the item to get details for"),
 ) -> Dict[str, Any]:
-    """Create new metadata for a specific openHAB item"""
-    try:
-        # Validate that the namespace is not 'semantics'
-        if namespace == "semantics":
-            raise ValueError("The 'semantics' namespace is a reserved namespace for openHAB semantic tags. Please assign tags to change the item semantics.")
-        metadata.raise_for_errors()
-        return openhab_client.create_item_metadata(item_name, namespace, metadata)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    """
+    Gives a detailed description of an openHAB item. Use this tool to get
+    information about a specific item.
 
-@mcp.tool()
-def delete_item_metadata(
-    item_name: str = Field(description="Name of the item to delete metadata for"),
-    namespace: str = Field(description="Namespace of the metadata"),
-) -> bool:
-    """Delete metadata for a specific openHAB item"""
-    try:
-        # Validate that the namespace is not 'semantics'
-        if namespace == "semantics":
-            raise ValueError("The 'semantics' namespace is a reserved namespace for openHAB semantic tags. Please assign tags to change the item semantics.")
-        return openhab_client.delete_item_metadata(item_name, namespace)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]} 
+    Args:
+        item_name: Name of the item to get details for
+    """
+    return openhab_client.get_item(item_name)
 
-@mcp.tool()
-def update_item_metadata(
-    item_name: str = Field(description="Name of the item to update metadata for"),
-    namespace: str = Field(description="Namespace of the metadata"),
-    metadata: ItemMetadata = Field(description="Metadata to update"),
-) -> Dict[str, Any]:
-    """Update metadata for a specific openHAB item"""
-    try:
-        # Validate that the namespace is not 'semantics'
-        if namespace == "semantics":
-            raise ValueError("The 'semantics' namespace is a reserved namespace for openHAB semantic tags. Please assign tags to change the item semantics.")
-            
-        metadata.raise_for_errors()
-        return openhab_client.update_item_metadata(item_name, namespace, metadata)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-
-@mcp.tool()
-def delete_item_semantic_tag(
-    item_name: str = Field(description="Name of the item to delete tag for"),
-    tag_uid: str = Field(description="UID of the tag to delete"),
-) -> bool:
-    """Delete tag for a specific openHAB item"""
-    try:
-        return openhab_client.delete_item_semantic_tag(item_name, tag_uid)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-    
-@mcp.tool()
-def delete_item_non_semantic_tag(
-    item_name: str = Field(description="Name of the item to delete tag for"),
-    tag_name: str = Field(description="Name of the tag to delete"),
-) -> bool:
-    """Delete tag for a specific openHAB item"""
-    try:
-        return openhab_client.delete_item_non_semantic_tag(item_name, tag_name)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
 
 @mcp.tool()
 def get_create_item_schema() -> Dict[str, Any]:
     """
     Get the JSON schema for creating an item.
     """
-    schema = CreateItem.model_json_schema()
-    schema = _set_additional_properties_false(schema)
-    return schema
+    return ItemCreate.model_json_schema()
 
 
 @mcp.tool()
 def create_item(
-    item: CreateItem = Field(description="Item details to create"),
+    item: ItemCreate = Field(..., description="Item details to create"),
 ) -> Dict[str, Any]:
-    """Create a new openHAB item"""
-    try:
-        item.raise_for_errors()
-        return openhab_client.create_item(item)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    """
+    Create a new openHAB item
+
+    Args:
+        item: Item details to create
+    """
+    return openhab_client.create_item(item)
 
 
 @mcp.tool()
 def update_item(
-    item: Item = Field(description="Item details to update"),
+    item: ItemUpdate = Field(..., description="Item details to update"),
 ) -> Dict[str, Any]:
     """
     Update an existing openHAB item
@@ -271,30 +178,50 @@ def update_item(
     Args:
         item: Item details to update
     """
-    try:
-        item.raise_for_errors()
-        return openhab_client.update_item(item)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.update_item(item)
 
 
 @mcp.tool()
 def delete_item(
-    item_name: str = Field(description="Name of the item to delete"),
+    item_name: str = Field(..., description="Name of the item to delete"),
 ) -> bool:
-    """Delete an openHAB item"""
-    try:
-        return openhab_client.delete_item(item_name)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    """
+    Delete an openHAB item
+
+    Args:
+        item_name: Name of the item to delete
+    """
+    return openhab_client.delete_item(item_name)
+
+
+@mcp.tool()
+def get_item_state(
+    item_name: str = Field(..., description="Name of the item to get state for"),
+) -> str:
+    """
+    Get the state of an openHAB item
+
+    Args:
+        item_name: Name of the item to get state for
+    """
+    return openhab_client.get_item_state(item_name)
 
 
 @mcp.tool()
 def update_item_state(
-    item_name: str = Field(description="Name of the item to update state for"),
+    item_name: str = Field(..., description="Name of the item to update state for"),
     state: str = Field(
+        ...,
         description="State to update the item to as string. Type conversion must be possible for the item type",
-        examples=["ON", "OFF", "140.5", "14%", "20 kWH", "2025-06-03T22:21:13.123Z", "This is a text"],
+        examples=[
+            "ON",
+            "OFF",
+            "140.5",
+            "14%",
+            "20 kWH",
+            "2025-06-03T22:21:13.123Z",
+            "This is a text",
+        ],
     ),
 ) -> Dict[str, Any]:
     """
@@ -304,20 +231,46 @@ def update_item_state(
         item_name: Name of the item to update state for
         state: State to update the item to. Allowed states depend on the item type
     """
-    try:
-        return openhab_client.update_item_state(item_name, state)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.update_item_state(item_name, state)
+
+
+@mcp.tool()
+def send_command(
+    item_name: str = Field(..., description="Name of the item to send command to"),
+    command: str = Field(
+        ...,
+        description="Command to send to the item. Allowed commands depend on the item type",
+        examples=[
+            "ON",
+            "OFF",
+            "140.5",
+            "14%",
+            "20 kWH",
+            "2025-06-03T22:21:13.123Z",
+            "This is a text",
+        ],
+    ),
+) -> Dict[str, Any]:
+    """
+    Send a command to an openHAB item
+
+    Args:
+        item_name: Name of the item to send command to
+        command: Command to send to the item. Allowed commands depend on the item type
+    """
+    return openhab_client.send_command(item_name, command)
 
 
 @mcp.tool()
 def get_item_persistence(
-    item_name: str = Field(description="Name of the item to get persistence for"),
+    item_name: str = Field(..., description="Name of the item to get persistence for"),
     start: str = Field(
+        ...,
         description="Start time in UTC/Zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']",
         examples=["2025-06-03T22:21:13.123Z"],
     ),
     end: str = Field(
+        ...,
         description="End time in UTC/Zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']",
         examples=["2025-06-03T22:21:13.123Z"],
     ),
@@ -331,22 +284,222 @@ def get_item_persistence(
         start: Start time in UTC/Zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
         end: End time in UTC/Zulu time format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
     """
-    try:
-        return openhab_client.get_item_persistence(item_name, start, end)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.get_item_persistence(item_name, start, end)
+
+
+# Item Metadata Tools
+@mcp.tool()
+def get_item_metadata_namespaces(
+    item_name: str = Field(
+        ..., description="Name of the item to get metadata namespaces for"
+    ),
+) -> List[str]:
+    """
+    Get the namespaces of metadata for a specific openHAB item.
+
+    Args:
+        item_name: Name of the item to get metadata namespaces for
+
+    Returns:
+        List[str]: A list of metadata namespaces
+
+    Raises:
+        ValueError: If no item name is provided or item with the given name does not exist
+    """
+    return openhab_client.get_item_metadata_namespaces(item_name)
 
 
 @mcp.tool()
+def get_item_metadata(
+    item_name: str = Field(..., description="Name of the item to get metadata for"),
+    namespace: str = Field(..., description="Namespace of the metadata"),
+) -> Dict[str, Any]:
+    """
+    Get the metadata for a specific openHAB item.
+
+    Args:
+        item_name: Name of the item to get metadata for
+        namespace: Namespace of the metadata
+
+    Returns:
+        Dict[str, Any]: The metadata for the item
+
+    Raises:
+        ValueError: If no item name is provided or item with the given name does not exist
+    """
+    return openhab_client.get_item_metadata(item_name, namespace)
+
+
+@mcp.tool()
+def get_item_metadata_schema() -> Dict[str, Any]:
+    """
+    Get the JSON schema for creating item metadata.
+    """
+    return ItemMetadata.model_json_schema()
+
+
+@mcp.tool()
+def add_or_update_item_metadata(
+    item_name: str = Field(
+        ..., description="Name of the item to add or update metadata for"
+    ),
+    namespace: str = Field(..., description="Namespace of the metadata"),
+    metadata: ItemMetadata = Field(..., description="Metadata to add or update"),
+) -> Dict[str, Any]:
+    """
+    Add or update metadata for a specific openHAB item
+
+    Args:
+        item_name: Name of the item to add or update metadata for
+        namespace: Namespace of the metadata
+        metadata: Metadata to add or update
+    """
+    return openhab_client.add_or_update_item_metadata(item_name, namespace, metadata)
+
+
+@mcp.tool()
+def remove_item_metadata(
+    item_name: str = Field(..., description="Name of the item to remove metadata for"),
+    namespace: str = Field(..., description="Namespace of the metadata"),
+) -> bool:
+    """
+    Remove metadata for a specific openHAB item
+
+    Args:
+        item_name: Name of the item to remove metadata for
+        namespace: Namespace of the metadata
+    """
+    return openhab_client.remove_item_metadata(item_name, namespace)
+
+
+# Item member tools
+@mcp.tool()
+def add_item_member(
+    item_name: str = Field(..., description="Name of the item to add member for"),
+    member_item_name: str = Field(..., description="Name of the member item to add"),
+) -> Dict[str, Any]:
+    """
+    Add a member to an item (group).
+
+    Args:
+        item_name: Name of the parent item (group)
+        member_item_name: Name of the member item to add
+
+    Returns:
+        The complete updated item
+
+    Raises:
+        ValueError: If the item with the given name does not exist or is not a group item
+        ValueError: If the member item with the given name does not exist or is not editable
+    """
+    return openhab_client.add_item_member(item_name, member_item_name)
+
+
+@mcp.tool()
+def remove_item_member(
+    item_name: str = Field(..., description="Name of the item to remove member for"),
+    member_item_name: str = Field(..., description="Name of the member item to remove"),
+) -> Dict[str, Any]:
+    """
+    Remove a member from an item (group).
+
+    Args:
+        item_name: Name of the parent item (group)
+        member_item_name: Name of the member item to remove
+
+    Returns:
+        The complete updated item
+
+    Raises:
+        ValueError: If the item with the given name does not exist or is not a group item
+        ValueError: If the member item with the given name does not exist or is not editable
+    """
+    return openhab_client.remove_item_member(item_name, member_item_name)
+
+
+# Links
+@mcp.tool()
+def list_links(
+    page: int = Field(
+        1,
+        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
+    ),
+    page_size: int = Field(15, description="Number of elements per page"),
+    sort_order: str = Field("asc", description="Sort order", examples=["asc", "desc"]),
+    item_name: Optional[str] = Field(
+        None, description="Optional filter links by item name"
+    ),
+) -> Dict[str, Any]:
+    """
+    List all openHAB item to thing links, optionally filtered by item name with pagination.
+
+    Args:
+        page: 1-based page number (default: 1)
+        page_size: Number of elements per page (default: 50)
+        sort_order: Sort order ("asc" or "desc") (default: "asc")
+        item_name: Optional filter links by item name (default: None)
+    """
+    return openhab_client.list_links(page, page_size, sort_order, item_name)
+
+
+@mcp.tool()
+def get_link(
+    item_name: str = Field(..., description="Name of the item to get link for"),
+    channel_uid: str = Field(..., description="UID of the channel to get link for"),
+) -> Optional[Dict[str, Any]]:
+    """
+    Get a specific openHAB item to thing link by item name and channel UID.
+
+    Args:
+        item_name: Name of the item to get link for
+        channel_uid: UID of the channel to get link for
+    """
+    return openhab_client.get_link(item_name, channel_uid)
+
+@mcp.tool()
+def get_create_or_update_link_schema() -> Dict[str, Any]:
+    """
+    Get the JSON schema for creating a link.
+    """
+    return Link.model_json_schema()
+
+@mcp.tool()
+def create_or_update_link(
+    link: Link = Field(..., description="Link to create or update")
+) -> Dict[str, Any]:
+    """
+    Create a new openHAB item to thing link or update an existing one.
+
+    Args:
+        link: Link to create or update
+    """
+    return openhab_client.create_or_update_link(link)
+
+
+@mcp.tool()
+def delete_link(
+    item_name: str = Field(..., description="Name of the item to delete link for"),
+    channel_uid: str = Field(..., description="UID of the channel to delete link for"),
+) -> bool:
+    """
+    Delete an openHAB item to thing link.
+
+    Args:
+        item_name: Name of the item to delete link for
+        channel_uid: UID of the channel to delete link for
+    """
+    return openhab_client.delete_link(item_name, channel_uid)
+
+
+# Thing Tools
+@mcp.tool()
 def list_things(
     page: int = Field(
+        1,
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
-        default=1,
     ),
-    page_size: int = Field(description="Number of elements per page", default=50),
-    sort_order: str = Field(
-        description="Sort order", examples=["asc", "desc"], default="asc"
-    ),
+    page_size: int = Field(15, description="Number of elements per page"),
+    sort_order: str = Field("asc", description="Sort order", examples=["asc", "desc"]),
 ) -> Dict[str, Any]:
     """
     List openHAB things with basic information with pagination. Use the `get_thing_details` tool to get
@@ -357,18 +510,85 @@ def list_things(
         page_size: Number of elements per page (default: 50)
         sort_order: Sort order ("asc" or "desc") (default: "asc")
     """
-    try:
-        return openhab_client.list_things(
-            page=page, page_size=page_size, sort_order=sort_order
-        )
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.list_things(
+        page=page, page_size=page_size, sort_order=sort_order
+    )
+
+
+@mcp.tool()
+def get_thing(
+    thing_uid: str = Field(..., description="UID of the thing to get details for"),
+) -> Dict[str, Any]:
+    """
+    Get the details of a specific openHAB thing by UID.
+
+    Args:
+        thing_uid: UID of the thing to get details for
+    """
+    return openhab_client.get_thing(thing_uid)
+
+
+@mcp.tool()
+def get_create_thing_schema() -> Dict[str, Any]:
+    """
+    Get the JSON schema for creating a thing.
+    """
+    return ThingCreate.model_json_schema()
+
+
+@mcp.tool()
+def get_update_thing_schema() -> Dict[str, Any]:
+    """
+    Get the JSON schema for updating a thing.
+    """
+    return ThingUpdate.model_json_schema()
+
+
+@mcp.tool()
+def create_thing(
+    thing: ThingCreate = Field(..., description="Thing to create"),
+) -> Dict[str, Any]:
+    """
+    Create a new openHAB thing.
+
+    Args:
+        thing: Thing to create
+    """
+    return openhab_client.create_thing(thing)
+
+
+@mcp.tool()
+def update_thing(
+    thing: ThingUpdate = Field(..., description="Thing to update"),
+) -> Dict[str, Any]:
+    """
+    Update an existing openHAB thing.
+
+    Args:
+        thing: Thing to update
+    """
+    return openhab_client.update_thing(thing)
+
+
+@mcp.tool()
+def delete_thing(
+    thing_uid: str = Field(..., description="UID of the thing to delete"),
+) -> bool:
+    """
+    Delete an openHAB thing.
+
+    Args:
+        thing_uid: UID of the thing to delete
+    """
+    return openhab_client.delete_thing(thing_uid)
 
 
 @mcp.tool()
 def get_thing_channels(
-    thing_uid: str = Field(description="UID of the thing to get details for"),
-    linked_only: bool = Field(description="If True, only return channels with linked items", default=False),
+    thing_uid: str = Field(..., description="UID of the thing to get details for"),
+    linked_only: bool = Field(
+        False, description="If True, only return channels with linked items"
+    ),
 ) -> Dict[str, Any]:
     """
     Get the channels of a specific openHAB thing by UID.
@@ -383,78 +603,17 @@ def get_thing_channels(
         return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
 
 
-@mcp.tool()
-def get_create_thing_schema() -> Dict[str, Any]:
-    """
-    Get the JSON schema for creating a thing.
-    """
-    schema = Thing.model_json_schema()
-    schema = _set_additional_properties_false(schema)
-    return schema
-
-
-@mcp.tool()
-def create_thing(
-    thing: Thing = Field(description="Thing to create"),
-) -> Dict[str, Any]:
-    """
-    Create a new openHAB thing.
-
-    Args:
-        thing: Thing to create
-    """
-    try:
-        thing.raise_for_errors()
-        return openhab_client.create_thing(thing)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-
-
-@mcp.tool()
-def update_thing(
-    thing: Thing = Field(description="Thing to update"),
-) -> Dict[str, Any]:
-    """
-    Update an existing openHAB thing.
-
-    Args:
-        thing: Thing to update
-    """
-    try:
-        thing.raise_for_errors()
-        return openhab_client.update_thing(thing)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-
-
-@mcp.tool()
-def delete_thing(
-    thing_uid: str = Field(description="UID of the thing to delete"),
-) -> bool:
-    """
-    Delete an openHAB thing.
-
-    Args:
-        thing_uid: UID of the thing to delete
-    """
-    try:
-        return openhab_client.delete_thing(thing_uid)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-
-
+# Rule Tools
 @mcp.tool()
 def list_rules(
     page: int = Field(
+        1,
         description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
-        default=1,
     ),
-    page_size: int = Field(description="Number of elements per page", default=50),
-    sort_order: str = Field(
-        description="Sort order", examples=["asc", "desc"], default="asc"
-    ),
+    page_size: int = Field(15, description="Number of elements per page"),
+    sort_order: str = Field("asc", description="Sort order", examples=["asc", "desc"]),
     filter_tag: Optional[str] = Field(
-        description="Filter rules by tag (default: None)", default=None
+        None, description="Filter rules by tag (default: None)"
     ),
 ) -> Dict[str, Any]:
     """
@@ -462,24 +621,21 @@ def list_rules(
 
     Args:
         page: 1-based page number (default: 1)
-        page_size: Number of elements per page (default: 50)
+        page_size: Number of elements per page (default: 15)
         sort_order: Sort order ("asc" or "desc") (default: "asc")
         filter_tag: Filter rules by tag (default: None)
     """
-    try:
-        return openhab_client.list_rules(
-            page=page,
-            page_size=page_size,
-            sort_order=sort_order,
-            filter_tag=filter_tag,
-        )
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.list_rules(
+        page=page,
+        page_size=page_size,
+        sort_order=sort_order,
+        filter_tag=filter_tag,
+    )
 
 
 @mcp.tool()
-def get_rule_details(
-    rule_uid: str = Field(description="UID of the rule to get details for"),
+def get_rule(
+    rule_uid: str = Field(..., description="UID of the rule to get details for"),
 ) -> Dict[str, Any]:
     """
     Get a specific openHAB rule with more details by UID.
@@ -487,60 +643,44 @@ def get_rule_details(
     Args:
         rule_uid: UID of the rule to get details for
     """
-    try:
-        return openhab_client.get_rule_details(rule_uid)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.get_rule(rule_uid)
 
 
 @mcp.tool()
-def list_scripts(
-    page: int = Field(
-        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
-        default=1,
-    ),
-    page_size: int = Field(description="Number of elements per page", default=50),
-    sort_order: str = Field(
-        description="Sort order", examples=["asc", "desc"], default="asc"
-    ),
-) -> Dict[str, Any]:
+def get_create_rule_schema() -> dict:
     """
-    List all openHAB scripts. A script is a rule without a trigger and tag of 'Script'
-
-    Args:
-        page: 1-based page number (default: 1)
-        page_size: Number of elements per page (default: 15)
-        sort_order: Sort order ("asc" or "desc") (default: "asc")
+    Get the JSON schema for creating a rule.
     """
-    try:
-        return openhab_client.list_scripts(
-            page=page, page_size=page_size, sort_order=sort_order
-        )
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return RuleCreate.model_json_schema()
 
 
 @mcp.tool()
-def get_script_details(
-    script_id: str = Field(description="ID of the script to get details for"),
+def get_update_rule_schema() -> dict:
+    """
+    Get the JSON schema for updating a rule.
+    """
+    return RuleUpdate.model_json_schema()
+
+
+@mcp.tool()
+def create_rule(
+    rule: RuleCreate = Field(..., description="Rule to create")
 ) -> Dict[str, Any]:
     """
-    Get a specific openHAB script with more details by ID. A script is a rule without a trigger and tag of 'Script'
+    Create a new openHAB rule.
 
     Args:
-        script_id: ID of the script to get details for
+        rule: Rule to create
     """
-    try:
-        return openhab_client.get_script_details(script_id)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    rule.raise_for_errors()
+    return openhab_client.create_rule(rule)
 
 
 @mcp.tool()
 def update_rule(
-    rule_uid: str = Field(description="UID of the rule to update"),
-    rule_updates: Dict[str, Any] = Field(
-        description="Partial updates to apply to the rule"
+    rule_uid: str = Field(..., description="UID of the rule to update"),
+    rule_updates: RuleUpdate = Field(
+        ..., description="Partial updates to apply to the rule"
     ),
 ) -> Dict[str, Any]:
     """
@@ -550,18 +690,15 @@ def update_rule(
         rule_uid: UID of the rule to update
         rule_updates: Partial updates to apply to the rule
     """
-    try:
-        return openhab_client.update_rule(rule_uid, rule_updates)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.update_rule(rule_uid, rule_updates)
 
 
 @mcp.tool()
 def update_rule_script_action(
-    rule_uid: str = Field(description="UID of the rule to update"),
-    action_id: str = Field(description="ID of the action to update"),
-    script_type: str = Field(description="Type of the script"),
-    script_content: str = Field(description="Content of the script"),
+    rule_uid: str = Field(..., description="UID of the rule to update"),
+    action_id: str = Field(..., description="ID of the action to update"),
+    script_type: str = Field(..., description="Type of the script"),
+    script_content: str = Field(..., description="Content of the script"),
 ) -> Dict[str, Any]:
     """
     Update a script action in an openHAB rule.
@@ -572,68 +709,94 @@ def update_rule_script_action(
         script_type: Type of the script
         script_content: Content of the script
     """
-    try:
-        return openhab_client.update_rule_script_action(
-            rule_uid, action_id, script_type, script_content
-        )
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.update_rule_script_action(
+        rule_uid, action_id, script_type, script_content
+    )
 
 
 @mcp.tool()
-def get_create_rule_schema() -> dict:
-    """
-    Get the JSON schema for creating a rule.
-    """
-    schema = RuleDetails.model_json_schema()
-    schema = _set_additional_properties_false(schema)
-    return schema
-
-
-@mcp.tool()
-def create_rule(rule: RuleDetails = Field(description="Rule to create")) -> Dict[str, Any]:
-    """
-    Create a new openHAB rule.
-
-    Args:
-        rule: Rule to create
-    """
-    try:
-        rule.raise_for_errors()
-        return openhab_client.create_rule(rule)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-
-
-@mcp.tool()
-def delete_rule(rule_uid: str = Field(description="UID of the rule to delete")) -> bool:
+def delete_rule(
+    rule_uid: str = Field(..., description="UID of the rule to delete")
+) -> bool:
     """
     Delete an openHAB rule.
 
     Args:
         rule_uid: UID of the rule to delete
     """
-    try:
-        return openhab_client.delete_rule(rule_uid)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.delete_rule(rule_uid)
 
 
 @mcp.tool()
-def get_create_script_schema() -> dict:
+def run_rule_now(
+    rule_uid: str = Field(..., description="UID of the rule to run")
+) -> bool:
     """
-    Get the JSON schema for creating a script.
+    Run a rule immediately
+
+    Args:
+        rule_uid: UID of the rule to run
     """
-    schema = RuleDetails.model_json_schema()
-    schema = _set_additional_properties_false(schema)
-    return schema
+    return openhab_client.run_rule_now(rule_uid)
+
+
+@mcp.tool()
+def set_rule_enabled(
+    rule_uid: str = Field(..., description="UID of the rule to enable"),
+    enabled: bool = Field(
+        ..., description="Whether to enable (True) or disable (False) the rule"
+    ),
+) -> bool:
+    """
+    Enable or disable a rule
+
+    Args:
+        rule_uid: UID of the rule to enable/disable
+        enabled: Whether to enable (True) or disable (False) the rule
+    """
+    return openhab_client.set_rule_enabled(rule_uid, enabled)
+
+
+@mcp.tool()
+def list_scripts(
+    page: int = Field(
+        1,
+        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
+    ),
+    page_size: int = Field(15, description="Number of elements per page"),
+    sort_order: str = Field("asc", description="Sort order", examples=["asc", "desc"]),
+) -> Dict[str, Any]:
+    """
+    List all openHAB scripts. A script is a rule without a trigger and tag of 'Script'
+
+    Args:
+        page: 1-based page number (default: 1)
+        page_size: Number of elements per page (default: 15)
+        sort_order: Sort order ("asc" or "desc") (default: "asc")
+    """
+    return openhab_client.list_scripts(
+        page=page, page_size=page_size, sort_order=sort_order
+    )
+
+
+@mcp.tool()
+def get_script(
+    script_id: str = Field(..., description="ID of the script to get details for"),
+) -> Dict[str, Any]:
+    """
+    Get a specific openHAB script with more details by ID. A script is a rule without a trigger and tag of 'Script'
+
+    Args:
+        script_id: ID of the script to get details for
+    """
+    return openhab_client.get_script(script_id)
 
 
 @mcp.tool()
 def create_script(
-    script_id: str = Field(description="ID of the script to create"),
-    script_type: str = Field(description="Type of the script"),
-    content: str = Field(description="Content of the script"),
+    script_id: str = Field(..., description="ID of the script to create"),
+    script_type: str = Field(..., description="Type of the script"),
+    content: str = Field(..., description="Content of the script"),
 ) -> Dict[str, Any]:
     """
     Create a new openHAB script. A script is a rule without a trigger and tag of 'Script'.
@@ -643,17 +806,14 @@ def create_script(
         script_type: Type of the script
         content: Content of the script
     """
-    try:
-        return openhab_client.create_script(script_id, script_type, content)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.create_script(script_id, script_type, content)
 
 
 @mcp.tool()
 def update_script(
-    script_id: str = Field(description="ID of the script to update"),
-    script_type: str = Field(description="Type of the script"),
-    content: str = Field(description="Content of the script"),
+    script_id: str = Field(..., description="ID of the script to update"),
+    script_type: str = Field(..., description="Type of the script"),
+    content: str = Field(..., description="Content of the script"),
 ) -> Dict[str, Any]:
     """
     Update an existing openHAB script. A script is a rule without a trigger and tag of 'Script'.
@@ -663,14 +823,12 @@ def update_script(
         script_type: Type of the script
         content: Content of the script
     """
-    try:
-        return openhab_client.update_script(script_id, script_type, content)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.update_script(script_id, script_type, content)
 
 
+@mcp.tool()
 def delete_script(
-    script_id: str = Field(description="ID of the script to delete"),
+    script_id: str = Field(..., description="ID of the script to delete"),
 ) -> bool:
     """
     Delete an openHAB script. A script is a rule without a trigger and tag of 'Script'.
@@ -678,53 +836,32 @@ def delete_script(
     Args:
         script_id: ID of the script to delete
     """
-    try:
-        return openhab_client.delete_script(script_id)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.delete_script(script_id)
 
 
 @mcp.tool()
-def run_rule_now(rule_uid: str = Field(description="UID of the rule to run")) -> bool:
-    """
-    Run an openHAB rule immediately.
-
-    Args:
-        rule_uid: UID of the rule to run
-    """
-    try:
-        return openhab_client.run_rule_now(rule_uid)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-
-
-@mcp.tool()
-def list_tags(
+def list_semantic_tags(
     parent_tag_uid: Optional[str] = Field(
-        description="UID of the parent tag to filter by",
-        default=None,
+        None, description="UID of the parent tag to filter by"
     ),
     category: Optional[str] = Field(
+        None,
         description="Category of the tag to filter by",
         examples=["Location", "Equipment", "Point", "Property"],
-        default=None,
     ),
 ) -> List[Dict[str, Any]]:
     """
     List all openHAB tags, optionally filtered by parent tag and category.
     """
-    try:
-        return openhab_client.list_tags(parent_tag_uid, category)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.list_semantic_tags(parent_tag_uid, category)
 
 
 @mcp.tool()
-def get_tag(
-    tag_uid: str = Field(description="UID of the tag to get details for"),
+def get_semantic_tag(
+    tag_uid: str = Field(..., description="UID of the tag to get details for"),
     include_subtags: bool = Field(
+        False,
         description="Include subtags in the response",
-        default=False,
     ),
 ) -> Optional[Dict[str, Any]]:
     """
@@ -733,24 +870,21 @@ def get_tag(
     Args:
         tag_uid: UID of the tag to get details for
     """
-    try:
-        return openhab_client.get_tag(tag_uid, include_subtags)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.get_semantic_tag(tag_uid, include_subtags)
 
 
 @mcp.tool()
-def get_create_tag_schema() -> dict:
+def get_create_semantic_tag_schema() -> dict:
     """
     Get the JSON schema for creating a tag.
     """
-    schema = Tag.model_json_schema()
-    schema = _set_additional_properties_false(schema)
-    return schema
+    return Tag.model_json_schema()
 
 
 @mcp.tool()
-def create_semantic_tag(tag: Tag = Field(description="Tag to create")) -> Dict[str, Any]:
+def create_semantic_tag(
+    tag: Tag = Field(..., description="Tag to create")
+) -> Dict[str, Any]:
     """
     Create a new openHAB semantic tag.
     Tags can support multiple levels of hierarchy with the pattern 'parent_child'.
@@ -759,125 +893,355 @@ def create_semantic_tag(tag: Tag = Field(description="Tag to create")) -> Dict[s
     Args:
         tag: Tag to create
     """
-    try:
-        tag.raise_for_errors()
-        created_tag = openhab_client.create_semantic_tag(tag)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-    return created_tag
+    return openhab_client.create_semantic_tag(tag)
 
 
 @mcp.tool()
-def delete_tag(tag_uid: str = Field(description="UID of the tag to delete")) -> bool:
+def delete_semantic_tag(
+    tag_uid: str = Field(..., description="UID of the tag to delete")
+) -> bool:
     """
     Delete an openHAB tag.
 
     Args:
         tag_uid: UID of the tag to delete
     """
-    try:
-        openhab_client.delete_tag(tag_uid)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-    return True
+    return openhab_client.delete_semantic_tag(tag_uid)
 
 
 @mcp.tool()
-def list_links(
-    page: int = Field(
-        description="Page number of paginated result set. Page index starts with 1. There are more items when `has_next` is true",
-        default=1,
+def add_item_semantic_tag(
+    item_name: str = Field(..., description="Name of the item to add the tag to"),
+    tag_uid: str = Field(..., description="UID of the tag to add"),
+) -> bool:
+    """
+    Add semantic tag to a specific item
+
+    Args:
+        item_name: Name of the item to add the tag to
+        tag_uid: UID of the tag to add
+
+    Returns:
+        bool: True if the tag was added successfully or raises an error
+
+    Raises:
+        ValueError: If the item or tag is not found
+    """
+    return openhab_client.add_item_semantic_tag(item_name, tag_uid)
+
+
+@mcp.tool()
+def remove_item_semantic_tag(
+    item_name: str = Field(..., description="Name of the item to remove tag for"),
+    tag_uid: str = Field(..., description="UID of the tag to remove"),
+) -> bool:
+    """
+    Remove semantic tag for a specific openHAB item
+
+    Args:
+        item_name: Name of the item to remove the tag from
+        tag_uid: UID of the tag to remove
+
+    Returns:
+        bool: True if the tag was removed successfully or raises an error
+
+    Raises:
+        ValueError: If the item or tag is not found
+    """
+    return openhab_client.remove_item_semantic_tag(item_name, tag_uid)
+
+
+@mcp.tool()
+def add_item_non_semantic_tag(
+    item_name: str = Field(..., description="Name of the item to add the tag to"),
+    tag_name: str = Field(..., description="Name of the tag to add"),
+) -> bool:
+    """
+    Add non-semantic tag to a specific item
+
+    Args:
+        item_name: Name of the item to add the tag to
+        tag_name: Name of the tag to add
+
+    Returns:
+        bool: True if the tag was added successfully or raises an error
+
+    Raises:
+        ValueError: If the item or tag is not found
+    """
+    return openhab_client.add_item_non_semantic_tag(item_name, tag_name)
+
+
+@mcp.tool()
+def remove_item_non_semantic_tag(
+    item_name: str = Field(..., description="Name of the item to remove tag for"),
+    tag_name: str = Field(..., description="Name of the tag to remove"),
+) -> bool:
+    """
+    Remove non-semantic tag for a specific openHAB item
+
+    Args:
+        item_name: Name of the item to remove the tag from
+        tag_name: Name of the tag to remove
+
+    Returns:
+        bool: True if the tag was removed successfully or raises an error
+
+    Raises:
+        ValueError: If the item or tag is not found
+    """
+    return openhab_client.remove_item_non_semantic_tag(item_name, tag_name)
+
+
+@mcp.tool()
+def update_item_members(
+    item_name: str = Field(description="Name of the groupitem to update members for"),
+    add_members: List[str] = Field(
+        default_factory=list, description="List of member item names to add"
     ),
-    page_size: int = Field(description="Number of elements per page", default=50),
-    sort_order: str = Field(
-        description="Sort order", examples=["asc", "desc"], default="asc"
-    ),
-    item_name: Optional[str] = Field(
-        description="Optional filter links by item name", default=None
+    remove_members: List[str] = Field(
+        default_factory=list, description="List of member item names to remove"
     ),
 ) -> Dict[str, Any]:
     """
-    List all openHAB item to thing links, optionally filtered by item name with pagination.
+    Update the members of a group item by adding and/or removing members.
 
     Args:
-        page: 1-based page number (default: 1)
-        page_size: Number of elements per page (default: 50)
-        sort_order: Sort order ("asc" or "desc") (default: "asc")
-        item_name: Optional filter links by item name (default: None)
+        item_name: Name of the group item to update members for
+        add_members: List of member item names to add to the group
+        remove_members: List of member item names to remove from the group
+
+    Returns:
+        The updated group item
     """
-    try:
-        links = openhab_client.list_links(page, page_size, sort_order, item_name)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-    return links
+    # Remove members first
+    for member_name in remove_members:
+        openhab_client.remove_item_member(item_name, member_name)
+
+    # Then add new members
+    for member_name in add_members:
+        openhab_client.add_item_member(item_name, member_name)
+
+    return openhab_client.list_items(filter_name=item_name, page_size=1)["items"][0]
+
+
+# Inbox Tools
+@mcp.tool()
+def list_inbox_things(
+    page: int = Field(1, description="Page number (1-based)"),
+    page_size: int = Field(15, description="Number of items per page"),
+    sort_order: str = Field("asc", description="Sort order (asc or desc)"),
+) -> Dict[str, Any]:
+    """
+    Get a paginated list of discovered things in the inbox
+
+    Args:
+        page: Page number (1-based)
+        page_size: Number of items per page
+        sort_order: Sort order ("asc" or "desc")
+
+    Returns:
+        Dictionary containing pagination info and list of inbox items
+    """
+    return openhab_client.list_inbox_things(
+        page=page, page_size=page_size, sort_order=sort_order
+    )
 
 
 @mcp.tool()
-def get_link(
-    item_name: str = Field(description="Name of the item to get link for"),
-    channel_uid: str = Field(description="UID of the channel to get link for"),
-) -> Optional[Dict[str, Any]]:
-    """
-    Get a specific openHAB item to thing link by item name and channel UID.
-
-    Args:
-        item_name: Name of the item to get link for
-        channel_uid: UID of the channel to get link for
-    """
-    try:
-        link = openhab_client.get_link(item_name, channel_uid)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-    return link
-
-
-@mcp.tool()
-def create_link(link: Link = Field(description="Link to create")) -> Dict[str, Any]:
-    """
-    Create a new openHAB item to thing link.
-
-    Args:
-        link: Link to create
-    """
-    try:
-        created_link = openhab_client.create_link(link)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-    return created_link
-
-
-@mcp.tool()
-def delete_link(
-    item_name: str = Field(description="Name of the item to delete link for"),
-    channel_uid: str = Field(description="UID of the channel to delete link for"),
+def approve_inbox_thing(
+    thing_uid: str = Field(..., description="UID of the inbox item to approve"),
+    thing_id: str = Field(..., description="ID to assign to the new thing"),
+    label: str = Field(..., description="Label for the new thing"),
 ) -> bool:
     """
-    Delete an openHAB item to thing link.
+    Approve and create a thing from an inbox item
 
     Args:
-        item_name: Name of the item to delete link for
-        channel_uid: UID of the channel to delete link for
+        thing_uid: UID of the inbox item
+        thing_id: ID to assign to the new thing
+        label: Label for the new thing
+
+    Returns:
+        bool: True if successful
+
+    Raises:
+        ValueError: If the approval fails
     """
-    try:
-        return openhab_client.delete_link(item_name, channel_uid)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.approve_inbox_thing(thing_uid, thing_id, label)
 
 
 @mcp.tool()
-def update_link(link: Link = Field(description="Link to update")) -> Dict[str, Any]:
+def ignore_inbox_thing(
+    thing_uid: str = Field(..., description="UID of the inbox item to ignore")
+) -> bool:
     """
-    Update an existing openHAB item to thing link.
+    Mark an inbox item as ignored
 
     Args:
-        link: Link to update
+        thing_uid: UID of the inbox item to ignore
+
+    Returns:
+        bool: True if successful
+
+    Raises:
+        ValueError: If the operation fails
+    """
+    return openhab_client.ignore_inbox_thing(thing_uid)
+
+
+@mcp.tool()
+def unignore_inbox_thing(
+    thing_uid: str = Field(..., description="UID of the inbox item to unignore")
+) -> bool:
+    """
+    Remove ignore status from an inbox item
+
+    Args:
+        thing_uid: UID of the inbox item to unignore
+
+    Returns:
+        bool: True if successful
+
+    Raises:
+        ValueError: If the operation fails
+    """
+    return openhab_client.unignore_inbox_thing(thing_uid)
+
+
+@mcp.tool()
+def delete_inbox_thing(
+    thing_uid: str = Field(..., description="UID of the inbox item to delete")
+) -> bool:
+    """
+    Delete an item from the inbox
+
+    Args:
+        thing_uid: UID of the inbox item to delete
+
+    Returns:
+        bool: True if successful
+
+    Raises:
+        ValueError: If the deletion fails
+    """
+    return openhab_client.delete_inbox_thing(thing_uid)
+
+
+# Template Tools
+@mcp.tool()
+def list_task_templates(
+    query: str = Field("", description="Search query string"),
+    tags: List[str] = Field(None, description="Optional list of tags to filter by"),
+    limit: int = Field(10, description="Maximum number of results to return"),
+    min_relevance: float = Field(0.1, description="Minimum relevance score (0.0 to 1.0)")
+) -> List[Dict[str, Any]]:
+    """
+    Search for task templates matching the query and optional tags. A task template can help to execute
+    more complex tasks so make sure to search here before you develop your own plan.
+    
+    Args:
+        query: Search query string
+        tags: Optional list of tags to filter by
+        limit: Maximum number of results to return
+        min_relevance: Minimum relevance score (0.0 to 1.0)
+        
+    Returns:
+        List of task template search results with metadata
+    """
+    results = template_manager.search_templates(
+        query=query,
+        tags=tags,
+        limit=limit,
+        min_relevance=min_relevance
+    )
+    return [result for result in results]
+
+@mcp.tool()
+def get_task_template(template_id: str = Field(..., description="ID of the template to retrieve")) -> Optional[Dict[str, Any]]:
+    """
+    Get a task template by ID. A task template is a structured process description for recurring tasks.
+    If instructed by the user make sure to follow the template instructions as good as possible,
+    not to deviate from the step order, skip or modify steps. If confirmation of the user is required
+    make sure to ask for permission to continue. If a step fails, follow its on_fail instructions.
+    
+    Args:
+        template_id: ID of the template to retrieve
+        
+    Returns:
+        The template if found, None otherwise
+    """
+    if template := template_manager.get_template(template_id):
+        return template.dict()
+    return None
+
+@mcp.tool()
+def save_task_template_override(template_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Save a task template to the override directory. This can be used to adjust existing templates to the
+    user's needs depending on the user's environment. This can also be used to create new templates.
+    
+    Args:
+        template_data: Task template data to save (must include metadata.id)
+        
+    Returns:
+        The saved template
+        
+    Raises:
+        ValueError: If template data is invalid or saving fails
     """
     try:
-        updated_link = openhab_client.update_link(link)
+        # Validate the template data
+        template = ProcessTemplate(**template_data)
+        
+        # Save to override directory
+        if template_manager.save_override_template(template):
+            # Reload templates to update the cache
+            template_manager.reload_templates()
+            return template.model_dump()
+        else:
+            raise ValueError("Failed to save template override")
     except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
-    return updated_link
+        raise ValueError(f"Invalid template data: {str(e)}")
 
+@mcp.tool()
+def delete_task_template_override(template_id: str = Field(..., description="ID of the template to delete from overrides")) -> bool:
+    """
+    Delete a task template from the override directory. This can be used to remove templates that
+    are no longer needed or to revert to the default template.
+    
+    Args:
+        template_id: ID of the template to delete
+        
+    Returns:
+        bool: True if deleted or didn't exist, False on error
+    """
+    try:
+        success = template_manager.delete_override_template(template_id)
+        if success:
+            template_manager.reload_templates()
+        return success
+    except Exception as e:
+        raise ValueError(f"Failed to delete template override: {str(e)}")
+
+@mcp.tool()
+def get_task_template_schema() -> Dict[str, Any]:
+    """
+    Get the JSON schema for a task template. This can be used to validate template data before saving.
+    
+    Returns:
+        The JSON schema for a task template, generated from Pydantic models
+    """
+    # Generate schema from the ProcessTemplate Pydantic model
+    schema = ProcessTemplate.model_json_schema()
+    
+    # Add any additional schema customization if needed
+    # For example, you might want to add descriptions or examples
+    
+    return schema
+
+# Add the template manager to the MCP instance
+mcp.template_manager = template_manager
 
 if __name__ == "__main__":
     mcp.run(transport=OPENHAB_MCP_TRANSPORT)

@@ -1,0 +1,200 @@
+{
+  "metadata": {
+    "id": "replace_thing_v1",
+    "name": "Replace OpenHAB Thing",
+    "description": "Replace a thing while preserving its item links and configurations",
+    "tags": ["thing", "replacement", "migration"],
+    "version": "1.3.0",
+    "author": "Thomas Lauterbach",
+    "created": "2025-06-22",
+    "last_updated": "2025-06-24T11:50:00+02:00",
+    "directive": "IMPORTANT: EXECUTE_STEPS_IN_ORDER",
+    "strict_sequence": true,
+    "instructions": "Follow these steps exactly in order. Do not skip, reorder, or modify steps. If user confirmation is required ask for permission to continue. If a step fails, follow its on_fail instructions."
+  },
+  "requires": [
+    "openhab_mcp>=0.1.0",
+    "mcp_tools:get_thing",
+    "mcp_tools:create_thing",
+    "mcp_tools:list_inbox_things",
+    "mcp_tools:approve_inbox_thing",
+    "mcp_tools:list_links",
+    "mcp_tools:create_or_update_link",
+    "mcp_tools:remove_links",
+    "mcp_tools:delete_thing"
+  ],
+  "input": [
+    {
+      "name": "old_thing_uid",
+      "type": "string",
+      "description": "uid of the thing to be replaced",
+      "required": true,
+      "examples": ["zwave:device:controller:node4"]
+    },
+    {
+      "name": "new_thing_source",
+      "type": "string",
+      "description": "Source for the new thing: 'inbox' to find in inbox, 'create' to create new or 'exists' if the thing has already been created",
+      "required": true,
+      "examples": ["inbox", "create", "exists"]
+    },
+    {
+      "name": "new_thing_uid",
+      "type": "string",
+      "description": "uid of the new thing in inbox or for creating new thing",
+      "required": true,
+      "examples": ["zwave:device:controller:node5"]
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "get_old_thing",
+      "action": "mcp_tools:get_thing",
+      "description": "Retrieve the thing to be replaced",
+      "parameters": {
+        "thing_uid": "{{old_thing_uid}}"
+      },
+      "on_fail": {
+        "condition": "not_found",
+        "action": "abort",
+        "message": "Could not find thing with UID '{{old_thing_uid}}'. Please verify the UID and try again."
+      }
+    },
+    {
+      "step_id": "get_new_thing",
+      "action": "mcp_tools:get_thing",
+      "description": "Retrieve the new thing",
+      "when": "{{new_thing_source == 'exists'}}",
+      "parameters": {
+        "thing_uid": "{{new_thing_uid}}"
+      },
+      "on_fail": {
+        "condition": "not_found",
+        "action": "abort",
+        "message": "Could not find thing with UID '{{new_thing_uid}}'. Please verify the UID and try again."
+      }
+    },
+    {
+      "step_id": "approve_inbox_thing",
+      "action": "mcp_tools:approve_inbox_thing",
+      "description": "Approve the inbox thing",
+      "when": "{{new_thing_source == 'inbox'}}",
+      "parameters": {
+        "thing_uid": "{{new_thing_uid}}"
+      },
+      "on_fail": {
+        "condition": "approval_failed",
+        "action": "abort",
+        "message": "Could not approve thing with UID '{{new_thing_uid}}'. Please verify the UID and try again."
+      }
+    },
+    {
+      "step_id": "create_new_thing",
+      "action": "mcp_tools:create_thing",
+      "description": "Create a new thing",
+      "when": "{{new_thing_source == 'create'}}",
+      "parameters": {
+        "thing_uid": "{{new_thing_uid}}"
+      },
+      "on_fail": {
+        "condition": "creation_failed",
+        "action": "abort",
+        "message": "Could not create thing with UID '{{new_thing_uid}}'. Please verify the UID and try again."
+      }
+    },
+    {
+      "step_id": "get_old_thing_channels",
+      "action": "mcp_tools:get_thing_channels",
+      "description": "Get the channels of the old thing",
+      "parameters": {
+        "thing_uid": "{{old_thing_uid}}",
+        "linked_only": true
+      },
+      "on_fail": {
+        "condition": "not_found",
+        "action": "abort",
+        "message": "Could not find channels for thing with UID '{{old_thing_uid}}'. Please verify that the thing has some channels."
+      }
+    },
+    {
+      "step_id": "get_old_thing_links",
+      "action": "mcp_tools:get_links",
+      "description": "Get the links of the old thing",
+      "parameters": {
+        "channel_uid": "{{get_old_thing_channels}}",
+        "item_name": "{{get_old_thing_channels}}"
+      },
+      "on_fail": {
+        "condition": "not_found",
+        "action": "abort",
+        "message": "Could not find links for thing with UID '{{old_thing_uid}}'. Please verify that the thing has some links."
+      }
+    },
+    {
+      "step_id": "add_new_thing_links",
+      "action": "mcp_tools:create_or_update_link",
+      "description": "Add the links to the new thing",
+      "parameters": {
+        "thing_uid": "{{new_thing_uid}}",
+        "link": "{{get_old_thing_links}}"
+      },
+      "confirmation": {
+        "message": "Do you want to add the links {{get_old_thing_links}} to the new thing {{new_thing_uid}}?",
+        "required": true
+      },
+      "on_fail": {
+        "condition": "add_links_failed",
+        "action": "abort",
+        "message": "Could not add links to thing with UID '{{new_thing_uid}}'. Please verify that the thing has channels."
+      }
+    },
+    {
+      "step_id": "verify_migration",
+      "action": "mcp_tools:list_links",
+      "description": "Verify the links were migrated",
+      "parameters": {
+        "thing_uid": "{{new_thing_uid}}"
+      },
+      "on_fail": {
+        "condition": "verification_failed",
+        "action": "ask_user",
+        "message": "Could not find links for thing with UID '{{new_thing_uid}}'. Should we rollback?"
+      }
+    },
+    {
+      "step_id": "remove_old_links",
+      "action": "mcp_tools:remove_links",
+      "description": "Remove the old thing links",
+      "parameters": {
+        "thing_uid": "{{old_thing_uid}}",
+        "links": "{{get_old_thing_links}}"
+      },
+      "confirmation": {
+        "message": "Do you want to remove {{get_old_thing_links}} from the old thing {{old_thing_uid}}?",
+        "required": true
+      },
+      "on_fail": {
+        "condition": "remove_links_failed",
+        "action": "continue",
+        "message": "Could not remove links from thing with UID '{{old_thing_uid}}'. Please remove the links manually."
+      }
+    },
+    {
+      "step_id": "remove_old_thing",
+      "action": "mcp_tools:delete_thing",
+      "description": "Remove the old thing",
+      "parameters": {
+        "thing_uid": "{{old_thing_uid}}"
+      },
+      "confirmation": {
+        "message": "Do you want to remove the old thing {{old_thing_uid}}?",
+        "required": true
+      },
+      "on_fail": {
+        "condition": "remove_thing_failed",
+        "action": "continue",
+        "message": "Could not remove thing with UID '{{old_thing_uid}}'. Please remove the thing manually."
+      }
+    }
+  ]
+}
