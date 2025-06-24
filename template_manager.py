@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Union, Tuple
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator, HttpUrl, constr, ConfigDict
+from pydantic import BaseModel, Field, constr, ConfigDict
 from typing_extensions import Literal
 from functools import lru_cache
 from packaging import version

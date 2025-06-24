@@ -4,10 +4,13 @@
     "name": "Resolve Duplicate Thing in Inbox",
     "description": "Identify and resolve duplicate things in the openHAB inbox that represent the same physical device but have different representation properties.",
     "tags": ["inbox", "duplicate", "thing", "migration"],
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "Thomas Lauterbach",
     "created": "2025-06-24",
-    "last_updated": "2025-06-24T07:51:13+02:00"
+    "last_updated": "2025-06-24T23:10:00+02:00",
+    "directive": "IMPORTANT: EXECUTE_STEPS_IN_ORDER",
+    "strict_sequence": true,
+    "instructions": "Follow these steps exactly in order. Do not skip, reorder, or modify steps. If user confirmation is required ask for permission to continue. If a step fails, follow its on_fail instructions."
   },
   "requires": [
     "openhab_mcp>=0.1.0",
@@ -25,20 +28,20 @@
       "type": "string",
       "description": "UID of the thing in the inbox",
       "required": true,
-      "examples": ["zwave:device:controller:node4"]
+      "examples": ["shelly:shelly25-roller:68c63af95edf"]
     },
     {
       "name": "existing_thing_uid",
       "type": "string",
       "description": "UID of the existing thing that might be a duplicate",
       "required": true,
-      "examples": ["zwave:device:controller:node12"]
+      "examples": ["shelly:shelly25-roller:d2ef6d396d"]
     }
   ],
   "steps": [
     {
       "step_id": "get_inbox_thing",
-      "action": "get_thing",
+      "action": "mcp_tools:get_thing",
       "target": "inbox_thing",
       "description": "Retrieve details of the inbox thing",
       "parameters": {
@@ -46,13 +49,13 @@
       },
       "on_fail": {
         "condition": "not_found",
-        "action": "ask_user",
-        "message": "Inbox thing with ID {{inbox_thing_uid}} not found. Please check the UID and try again."
+        "action": "abort",
+        "message": "Inbox thing with UID '{{inbox_thing_uid}}' not found. Please verify the UID and try again."
       }
     },
     {
       "step_id": "get_existing_thing",
-      "action": "get_thing",
+      "action": "mcp_tools:get_thing",
       "target": "existing_thing",
       "description": "Retrieve details of the existing thing",
       "parameters": {
@@ -60,8 +63,8 @@
       },
       "on_fail": {
         "condition": "not_found",
-        "action": "ask_user",
-        "message": "Existing thing with ID {{existing_thing_uid}} not found. Please check the UID and try again."
+        "action": "abort",
+        "message": "Existing thing with UID '{{existing_thing_uid}}' not found. Please verify the UID and try again."
       }
     },
     {
@@ -75,33 +78,60 @@
       "confirmation": {
         "message": "Do these things appear to be the same physical device?",
         "required": true
+      },
+      "on_fail": {
+        "condition": "comparison_failed",
+        "action": "ask_user",
+        "message": "The things do not appear to be the same physical device. Please verify if we can continue."
       }
     },
     {
       "step_id": "get_representation_property",
       "action": "get_representation_property",
-      "description": "Get the representation property of the inbox thing",
+      "description": "Find which propery is used as representation property of the inbox thing and get the value of this property",
       "parameters": {
-        "inbox_thing": "{{inbox_thing}}"
+        "thing": "{{inbox_thing}}"
       },
       "on_fail": {
-        "condition": "action_failed",
-        "action": "ask_user",
-        "message": "Getting the representation property of the inbox thing failed. Please try again."
+        "condition": "not_found",
+        "action": "abort",
+        "message": "Could not determine representation property for the inbox thing. Please verify the thing configuration."
       }
     },
     {
-      "step_id": "update_thing_represenatation_property",
-      "action": "update_thing_represenatation_property",
-      "description": "Resolve the duplicate by setting the representation property of the existing thing to the one provided by the inbox thing",
+      "step_id": "update_thing_representation_property",
+      "action": "update_thing_representation_property",
+      "description": "Update the existing thing with the representation property from the inbox thing",
       "parameters": {
-        "inbox_thing": "{{inbox_thing}}",
-        "existing_thing": "{{existing_thing}}"
+        "target_thing_uid": "{{existing_thing_uid}}",
+        "representation_property": "{{get_representation_property}}",
+        "value": "{{get_representation_property.value}}"
+      },
+      "confirmation": {
+        "message": "Do you want to update the representation property of '{{existing_thing_uid}}' with value '{{get_representation_property.value}}'?",
+        "required": true
       },
       "on_fail": {
-        "condition": "action_failed",
-        "action": "ask_user",
-        "message": "Updating the representation property of the existing thing failed. Please try again."
+        "condition": "update_failed",
+        "action": "abort",
+        "message": "Failed to update the representation property of '{{existing_thing_uid}}'. Please verify the thing configuration and try again."
+      }
+    },
+    {
+      "step_id": "delete_inbox_thing",
+      "action": "mcp_tools:delete_inbox_thing",
+      "description": "Delete the inbox thing since it's a duplicate",
+      "parameters": {
+        "thing_uid": "{{inbox_thing_uid}}"
+      },
+      "confirmation": {
+        "message": "Do you want to delete the inbox thing '{{inbox_thing_uid}}' since it's a duplicate?",
+        "required": true
+      },
+      "on_fail": {
+        "condition": "delete_failed",
+        "action": "continue",
+        "message": "Warning: Could not delete the inbox thing '{{inbox_thing_uid}}'. You may need to do this manually."
       }
     }
   ],
@@ -110,12 +140,12 @@
       "name": "Update existing thing with inbox version",
       "description": "When you want to update the existing thing with the inbox version representation property",
       "input": {
-        "inbox_thing_uid": "zwave:device:controller:node4",
-        "existing_thing_uid": "zwave:device:controller:node12"
+        "inbox_thing_uid": "shelly:shelly25-roller:68c63af95edf",
+        "existing_thing_uid": "shelly:shelly25-roller:d2ef6d396d"
       },
       "expected_output": {
         "status": "completed",
-        "message": "Successfully updated the existing thing with the inbox version."
+        "message": "Successfully updated the existing thing with the inbox version and deleted the inbox item."
       }
     }
   ]
