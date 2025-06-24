@@ -16,10 +16,11 @@
     "openhab_mcp>=0.1.0",
     "mcp_tools:get_thing",
     "mcp_tools:create_thing",
-    "mcp_tools:list_inbox_things",
     "mcp_tools:approve_inbox_thing",
-    "mcp_tools:list_links",
+    "mcp_tools:get_thing_channels",
+    "mcp_tools:get_links",
     "mcp_tools:create_or_update_link",
+    "mcp_tools:list_links",
     "mcp_tools:remove_links",
     "mcp_tools:delete_thing"
   ],

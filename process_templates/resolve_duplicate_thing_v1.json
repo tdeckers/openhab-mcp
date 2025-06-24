@@ -3,7 +3,7 @@
     "id": "resolve_duplicate_thing_v1",
     "name": "Resolve Duplicate Thing in Inbox",
     "description": "Identify and resolve duplicate things in the openHAB inbox that represent the same physical device but have different representation properties.",
-    "tags": ["inbox", "duplicate", "thing", "migration"],
+    "tags": ["inbox", "duplicate", "thing", "migration", "consolidation"],
     "version": "1.1.0",
     "author": "Thomas Lauterbach",
     "created": "2025-06-24",
@@ -15,12 +15,8 @@
   "requires": [
     "openhab_mcp>=0.1.0",
     "mcp_tools:list_inbox_things",
-    "mcp_tools:list_things",
     "mcp_tools:get_thing",
-    "mcp_tools:approve_inbox_thing",
-    "mcp_tools:delete_inbox_thing",
-    "mcp_tools:ignore_inbox_thing",
-    "mcp_tools:unignore_inbox_thing"
+    "mcp_tools:delete_inbox_thing"
   ],
   "input": [
     {
@@ -41,7 +37,7 @@
   "steps": [
     {
       "step_id": "get_inbox_thing",
-      "action": "mcp_tools:get_thing",
+      "action": "mcp_tools:list_inbox_things",
       "target": "inbox_thing",
       "description": "Retrieve details of the inbox thing",
       "parameters": {

@@ -115,14 +115,7 @@ class TemplateManager:
         self.templates_cache: Dict[str, ProcessTemplate] = {}
         self.search_index: Dict[str, Dict[str, Any]] = {}
         self._load_templates()
-    
-    @staticmethod
-    def _parse_version(version_str: str) -> Tuple[int, int, int]:
-        """Parse a version string into a tuple of integers for comparison."""
-        try:
-            return tuple(map(int, version_str.split('.')))
-        except (ValueError, AttributeError):
-            return (0, 0, 0)
+
     
     def check_version_requirement(self, required_version: Optional[str]) -> Tuple[bool, str]:
         """
@@ -169,8 +162,8 @@ class TemplateManager:
             # Check version requirement before parsing
             if req_version := template_data.get('requires', []):
                 for req in req_version:
-                    if isinstance(req, dict) and 'mcp_version' in req:
-                        is_compatible, message = self.check_version_requirement(req['mcp_version'])
+                    if isinstance(req, dict) and 'openhab_mcp' in req:
+                        is_compatible, message = self.check_version_requirement(req['openhab_mcp'])
                         if not is_compatible:
                             logger.warning(f"Skipping template {file_path.name}: {message}")
                             return None
@@ -430,8 +423,8 @@ if __name__ == "__main__":
         print(f"- {template_id}")
     
     # Search for templates
-    print("\nSearch results for 'thing':")
-    results = manager.search_templates("duplicate inbox thing")
+    print("\nSearch results for 'inbox thing consolidation':")
+    results = manager.search_templates("inbox thing consolidation")
     for result in results:
         print(f"Found template: {result['name']} (score: {result['relevance_score']:.2f})")
     
