@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openhab-mcp"
+version = "0.1.0"
+description = "An MCP server that interacts with openHAB instances via REST API"
+authors = [
+    {name = "Tom Deckers", email = "tom@example.com"},
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "mcp",
+    "python-dotenv",
+    "requests",
+    "pydantic",
+]
+
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "flake8-pyproject",
+    "isort",
+    "flake8-isort",
+    "black",
+    "pytest",
+]
+
+[project.scripts]
+openhab-mcp = "openhab_mcp_server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+include = [
+    "openhab_mcp_server.py",
+    "openhab_client.py", 
+    "models.py",
+    "__init__.py"
+]
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+known_first_party = ["models", "openhab_client", "openhab_mcp_server"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = "E203,W503"
+exclude = ".git,__pycache__,.venv,.env,venv,docker/"
+per-file-ignores = "__init__.py:F401"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.venv
+  | docker
+)/
+'''
