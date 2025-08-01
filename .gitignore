@@ -40,3 +40,4 @@ Thumbs.db
 config.json
 
 docker/
+podman/

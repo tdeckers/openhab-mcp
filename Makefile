@@ -1,10 +1,10 @@
 .PHONY: dev-env clean docker-build docker-run docker-stop
 
 docker-build:
-	docker build -t openhab-mcp .
+	podman build -t openhab-mcp .
 
 docker-run:
-	docker run -d --rm -p 8081:8080 \
+	podman run -d --rm -p 8081:8080 \
 		-e OPENHAB_URL=${OPENHAB_URL} \
 		-e OPENHAB_API_TOKEN=${OPENHAB_API_TOKEN} \
 		-e OPENHAB_USERNAME=${OPENHAB_USERNAME} \
@@ -13,10 +13,10 @@ docker-run:
 		openhab-mcp
 
 docker-stop:
-	docker stop openhab-mcp || true
+	podman stop openhab-mcp || true
 
 dev-env:
-	docker-compose up -d
+	podman-compose up -d
 
 clean:
 	rm -rf __pycache__

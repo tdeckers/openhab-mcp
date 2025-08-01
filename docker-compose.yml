@@ -1,39 +1,28 @@
-version: '3.8'
-
 services:
   openhab:
     image: openhab/openhab:latest
-    ports:
-      - "18080:8080"
+    network_mode: host
     environment:
-      - OPENHAB_HTTP_PORT=8080
+      - OPENHAB_HTTP_PORT=18080
       - EXTRA_JAVA_OPTS=-Duser.timezone=UTC
     volumes:
-      - ./docker/openhab/conf:/openhab/conf
-      - ./docker/openhab/userdata:/openhab/userdata
+      - ./podman/openhab/conf:/openhab/conf
+      - ./podman/openhab/userdata:/openhab/userdata
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/rest"]
+      test: ["CMD", "curl", "-f", "http://localhost:18080/rest"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - openhab-network
 
   openhab-mcp:
     build: .
-    ports:
-      - "8081:8080"  # Changed to 8081 to avoid conflict with OpenHAB
+    network_mode: host
     environment:
-      - OPENHAB_URL=http://openhab:8080
+      - OPENHAB_URL=http://localhost:18080
       - OPENHAB_API_TOKEN=${OPENHAB_API_TOKEN:-}
       - OPENHAB_USERNAME=${OPENHAB_USERNAME:-}
       - OPENHAB_PASSWORD=${OPENHAB_PASSWORD:-}
+      - PORT=8081
     depends_on:
       openhab:
         condition: service_healthy
-    networks:
-      - openhab-network
-
-networks:
-  openhab-network:
-    driver: bridge

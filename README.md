@@ -32,21 +32,21 @@ When connected to Claude or Cline in VSCode, you can use natural language to con
 
 ## Installation and Usage
 
-The recommended way to run the OpenHAB MCP Server is using Docker:
+The recommended way to run the OpenHAB MCP Server is using Podman:
 
-To run the MCP using Docker, follow these steps:
+To run the MCP using Podman, follow these steps:
 
-1. Build the Docker image:
+1. Build the Podman image:
    ```bash
    make docker-build
-   # or directly: docker build -t openhab-mcp .
+   # or directly: podman build -t openhab-mcp .
    ```
 
-2. Run the Docker container:
+2. Run the Podman container:
    ```bash
    make docker-run
    # or directly:
-   docker run -d --rm -p 8081:8080 \
+   podman run -d --rm -p 8081:8080 \
      -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
@@ -56,7 +56,7 @@ To run the MCP using Docker, follow these steps:
 3. To stop the container:
    ```bash
    make docker-stop
-   # or directly: docker stop openhab-mcp
+   # or directly: podman stop openhab-mcp
    ```
 
 Note: The container exposes port 8080 internally, but we map it to port 8081 on the host to avoid conflicts with OpenHAB which typically uses port 8080.
@@ -72,7 +72,7 @@ You can connect this OpenHAB MCP server to Claude or Cline in VSCode to interact
 
 ### Configuration for Claude Desktop
 
-1. Build and run the Docker container as described in the "Running the MCP with Docker" section.
+1. Build and run the Podman container as described in the "Installation and Usage" section.
 2. Create a configuration file for Claude Desktop:
 
 Save the following as `claude_desktop_config.json` in your Claude Desktop configuration directory:
@@ -86,7 +86,7 @@ Save the following as `claude_desktop_config.json` in your Claude Desktop config
   "mcp_servers": [
     {
       "name": "openhab-mcp",
-      "command": "docker",
+      "command": "podman",
       "args": [
         "run",
         "-d",
@@ -107,7 +107,7 @@ Save the following as `claude_desktop_config.json` in your Claude Desktop config
 
 ### Configuration for Cline in VSCode
 
-1. Build and run the Docker container as described in the "Running the MCP with Docker" section.
+1. Build and run the Podman container as described in the "Installation and Usage" section.
 2. Create a configuration file for Cline:
 
 Save the following as `mcp.json` in your Cline configuration directory:
@@ -120,7 +120,7 @@ Save the following as `mcp.json` in your Cline configuration directory:
   "mcp_servers": [
     {
       "name": "openhab-mcp",
-      "command": "docker",
+      "command": "podman",
       "args": [
         "run",
         "-d",
@@ -206,7 +206,7 @@ The server provides the following resources:
 
 ## Development
 
-For development purposes, please refer to the DEVELOPER.md file for more information on the Docker-based development workflow.
+For development purposes, please refer to the DEVELOPER.md file for more information on the Podman-based development workflow.
 
 ## Notes
 

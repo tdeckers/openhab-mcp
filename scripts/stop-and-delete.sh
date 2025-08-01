@@ -1,0 +1,1 @@
+podman ps --filter ancestor=localhost/openhab-mcp:latest --format "{{.ID}}" | xargs -r podman rm -f

@@ -4,14 +4,11 @@ FROM python:3.12-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy requirements file
-COPY requirements.txt .
-
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application
+# Copy the application files
 COPY . .
+
+# Install the package and dependencies
+RUN pip install --no-cache-dir .
 
 # Set environment variables with defaults that can be overridden at runtime
 ENV OPENHAB_URL=http://openhab:8080
