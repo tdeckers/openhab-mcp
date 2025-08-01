@@ -23,7 +23,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import INVALID_REQUEST, JSONRPCError
 
 # Import our modules
-from models import Item, Rule, Thing
+from models import EnrichedItemChannelLinkDTO, Item, ItemChannelLinkDTO, Rule, Thing
 from openhab_client import OpenHABClient
 
 mcp = FastMCP("OpenHAB MCP Server")
@@ -211,6 +211,55 @@ def delete_script(script_id: str) -> bool:
 def run_rule_now(rule_uid: str) -> bool:
     """Run an openHAB rule immediately"""
     return openhab_client.run_rule_now(rule_uid)
+
+
+@mcp.tool()
+def list_links(
+    channel_uid: Optional[str] = None, item_name: Optional[str] = None
+) -> List[EnrichedItemChannelLinkDTO]:
+    """List all openHAB item-channel links, optionally filtered by channel UID or item name"""
+    links = openhab_client.list_links(channel_uid, item_name)
+    return links
+
+
+@mcp.tool()
+def get_link(item_name: str, channel_uid: str) -> Optional[EnrichedItemChannelLinkDTO]:
+    """Get a specific openHAB item-channel link"""
+    link = openhab_client.get_link(item_name, channel_uid)
+    return link
+
+
+@mcp.tool()
+def create_or_update_link(
+    item_name: str, channel_uid: str, link_data: Optional[ItemChannelLinkDTO] = None
+) -> bool:
+    """Create or update an openHAB item-channel link"""
+    return openhab_client.create_or_update_link(item_name, channel_uid, link_data)
+
+
+@mcp.tool()
+def delete_link(item_name: str, channel_uid: str) -> bool:
+    """Delete a specific openHAB item-channel link"""
+    return openhab_client.delete_link(item_name, channel_uid)
+
+
+@mcp.tool()
+def get_orphan_links() -> List[EnrichedItemChannelLinkDTO]:
+    """Get orphaned openHAB item-channel links (links to non-existent channels)"""
+    orphan_links = openhab_client.get_orphan_links()
+    return orphan_links
+
+
+@mcp.tool()
+def purge_orphan_links() -> bool:
+    """Remove all orphaned openHAB item-channel links"""
+    return openhab_client.purge_orphan_links()
+
+
+@mcp.tool()
+def delete_all_links_for_object(object_name: str) -> bool:
+    """Delete all openHAB links for a specific item or thing"""
+    return openhab_client.delete_all_links_for_object(object_name)
 
 
 def main():

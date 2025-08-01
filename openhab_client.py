@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from models import Item, Rule, Thing
+from models import EnrichedItemChannelLinkDTO, Item, ItemChannelLinkDTO, Rule, Thing
 
 
 class OpenHABClient:
@@ -96,6 +96,102 @@ class OpenHABClient:
         if response.status_code == 404:
             raise ValueError(f"Item with name '{item_name}' not found")
 
+        response.raise_for_status()
+        return True
+
+    def list_links(
+        self, channel_uid: Optional[str] = None, item_name: Optional[str] = None
+    ) -> List[EnrichedItemChannelLinkDTO]:
+        """List all item-channel links, optionally filtered by channel UID or item name"""
+        params = {}
+        if channel_uid:
+            params["channelUID"] = channel_uid
+        if item_name:
+            params["itemName"] = item_name
+
+        response = self.session.get(f"{self.base_url}/rest/links", params=params)
+        response.raise_for_status()
+        return [EnrichedItemChannelLinkDTO(**link) for link in response.json()]
+
+    def get_link(
+        self, item_name: str, channel_uid: str
+    ) -> Optional[EnrichedItemChannelLinkDTO]:
+        """Get a specific item-channel link"""
+        if not item_name or not channel_uid:
+            return None
+
+        try:
+            response = self.session.get(
+                f"{self.base_url}/rest/links/{item_name}/{channel_uid}"
+            )
+            response.raise_for_status()
+            return EnrichedItemChannelLinkDTO(**response.json())
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
+
+    def create_or_update_link(
+        self,
+        item_name: str,
+        channel_uid: str,
+        link_data: Optional[ItemChannelLinkDTO] = None,
+    ) -> bool:
+        """Create or update an item-channel link"""
+        if not item_name or not channel_uid:
+            raise ValueError("Item name and channel UID are required")
+
+        # If no link data provided, create minimal link
+        if link_data is None:
+            payload = {
+                "itemName": item_name,
+                "channelUID": channel_uid,
+                "configuration": {},
+            }
+        else:
+            payload = link_data.dict()
+
+        response = self.session.put(
+            f"{self.base_url}/rest/links/{item_name}/{channel_uid}", json=payload
+        )
+        response.raise_for_status()
+        return True
+
+    def delete_link(self, item_name: str, channel_uid: str) -> bool:
+        """Delete a specific item-channel link"""
+        if not item_name or not channel_uid:
+            raise ValueError("Item name and channel UID are required")
+
+        response = self.session.delete(
+            f"{self.base_url}/rest/links/{item_name}/{channel_uid}"
+        )
+
+        if response.status_code == 404:
+            raise ValueError(
+                f"Link between item '{item_name}' and channel '{channel_uid}' not found"
+            )
+
+        response.raise_for_status()
+        return True
+
+    def get_orphan_links(self) -> List[EnrichedItemChannelLinkDTO]:
+        """Get orphaned item-channel links (links to non-existent channels)"""
+        response = self.session.get(f"{self.base_url}/rest/links/orphans")
+        response.raise_for_status()
+        return [EnrichedItemChannelLinkDTO(**link) for link in response.json()]
+
+    def purge_orphan_links(self) -> bool:
+        """Remove all orphaned item-channel links"""
+        response = self.session.post(f"{self.base_url}/rest/links/purge")
+        response.raise_for_status()
+        return True
+
+    def delete_all_links_for_object(self, object_name: str) -> bool:
+        """Delete all links for a specific item or thing"""
+        if not object_name:
+            raise ValueError("Object name (item name or thing UID) is required")
+
+        response = self.session.delete(f"{self.base_url}/rest/links/{object_name}")
         response.raise_for_status()
         return True
 
