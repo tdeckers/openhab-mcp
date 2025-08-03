@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import requests
 
@@ -122,7 +123,7 @@ class OpenHABClient:
 
         try:
             response = self.session.get(
-                f"{self.base_url}/rest/links/{item_name}/{channel_uid}"
+                f"{self.base_url}/rest/links/{item_name}/{quote(channel_uid, safe='')}"
             )
             response.raise_for_status()
             return EnrichedItemChannelLinkDTO(**response.json())
@@ -146,13 +147,13 @@ class OpenHABClient:
             payload = {
                 "itemName": item_name,
                 "channelUID": channel_uid,
-                "configuration": {},
             }
         else:
             payload = link_data.dict()
 
         response = self.session.put(
-            f"{self.base_url}/rest/links/{item_name}/{channel_uid}", json=payload
+            f"{self.base_url}/rest/links/{item_name}/{quote(channel_uid, safe='')}",
+            json=payload,
         )
         response.raise_for_status()
         return True
@@ -163,7 +164,7 @@ class OpenHABClient:
             raise ValueError("Item name and channel UID are required")
 
         response = self.session.delete(
-            f"{self.base_url}/rest/links/{item_name}/{channel_uid}"
+            f"{self.base_url}/rest/links/{item_name}/{quote(channel_uid, safe='')}"
         )
 
         if response.status_code == 404:
