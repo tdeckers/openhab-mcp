@@ -23,7 +23,18 @@ from mcp.server.stdio import stdio_server
 from mcp.types import INVALID_REQUEST, JSONRPCError
 
 # Import our modules
-from models import EnrichedItemChannelLinkDTO, Item, ItemChannelLinkDTO, Rule, Thing
+from models import (
+    ConfigStatusMessage,
+    EnrichedItemChannelLinkDTO,
+    FirmwareDTO,
+    FirmwareStatusDTO,
+    Item,
+    ItemChannelLinkDTO,
+    Rule,
+    Thing,
+    ThingDTO,
+    ThingStatusInfo,
+)
 from openhab_client import OpenHABClient
 
 mcp = FastMCP("OpenHAB MCP Server")
@@ -112,6 +123,68 @@ def get_thing(thing_uid: str) -> Optional[Thing]:
     """Get a specific openHAB thing by UID"""
     thing = openhab_client.get_thing(thing_uid)
     return thing
+
+
+@mcp.tool()
+def create_thing(thing: ThingDTO) -> Thing:
+    """Create a new openHAB thing"""
+    created_thing = openhab_client.create_thing(thing)
+    return created_thing
+
+
+@mcp.tool()
+def update_thing(thing_uid: str, thing: ThingDTO) -> Thing:
+    """Update an existing openHAB thing"""
+    updated_thing = openhab_client.update_thing(thing_uid, thing)
+    return updated_thing
+
+
+@mcp.tool()
+def delete_thing(thing_uid: str, force: bool = False) -> bool:
+    """Delete an openHAB thing"""
+    return openhab_client.delete_thing(thing_uid, force)
+
+
+@mcp.tool()
+def update_thing_config(thing_uid: str, configuration: Dict[str, Any]) -> Thing:
+    """Update an openHAB thing's configuration"""
+    updated_thing = openhab_client.update_thing_config(thing_uid, configuration)
+    return updated_thing
+
+
+@mcp.tool()
+def get_thing_config_status(thing_uid: str) -> List[ConfigStatusMessage]:
+    """Get openHAB thing configuration status"""
+    config_status = openhab_client.get_thing_config_status(thing_uid)
+    return config_status
+
+
+@mcp.tool()
+def set_thing_enabled(thing_uid: str, enabled: bool) -> Thing:
+    """Set the enabled status of an openHAB thing"""
+    updated_thing = openhab_client.set_thing_enabled(thing_uid, enabled)
+    return updated_thing
+
+
+@mcp.tool()
+def get_thing_status(thing_uid: str) -> ThingStatusInfo:
+    """Get openHAB thing status"""
+    thing_status = openhab_client.get_thing_status(thing_uid)
+    return thing_status
+
+
+@mcp.tool()
+def get_thing_firmware_status(thing_uid: str) -> Optional[FirmwareStatusDTO]:
+    """Get openHAB thing firmware status"""
+    firmware_status = openhab_client.get_thing_firmware_status(thing_uid)
+    return firmware_status
+
+
+@mcp.tool()
+def get_available_firmwares(thing_uid: str) -> List[FirmwareDTO]:
+    """Get available firmwares for an openHAB thing"""
+    firmwares = openhab_client.get_available_firmwares(thing_uid)
+    return firmwares
 
 
 @mcp.tool()

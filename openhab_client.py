@@ -3,7 +3,18 @@ from urllib.parse import quote
 
 import requests
 
-from models import EnrichedItemChannelLinkDTO, Item, ItemChannelLinkDTO, Rule, Thing
+from models import (
+    ConfigStatusMessage,
+    EnrichedItemChannelLinkDTO,
+    FirmwareDTO,
+    FirmwareStatusDTO,
+    Item,
+    ItemChannelLinkDTO,
+    Rule,
+    Thing,
+    ThingDTO,
+    ThingStatusInfo,
+)
 
 
 class OpenHABClient:
@@ -225,12 +236,166 @@ class OpenHABClient:
             return None
 
         try:
-            response = self.session.get(f"{self.base_url}/rest/things/{thing_uid}")
+            response = self.session.get(
+                f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}"
+            )
             response.raise_for_status()
             return Thing(**response.json())
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 return None
+            raise
+
+    def create_thing(self, thing: ThingDTO) -> Thing:
+        """Create a new thing"""
+        if not thing.UID:
+            raise ValueError("Thing must have a UID")
+
+        payload = thing.dict()
+
+        response = self.session.post(f"{self.base_url}/rest/things", json=payload)
+        response.raise_for_status()
+
+        # Get the created thing
+        return self.get_thing(thing.UID)
+
+    def update_thing(self, thing_uid: str, thing: ThingDTO) -> Thing:
+        """Update an existing thing"""
+        if not thing_uid:
+            raise ValueError("Thing UID is required")
+
+        payload = thing.dict()
+
+        response = self.session.put(
+            f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}", json=payload
+        )
+        response.raise_for_status()
+
+        # Get the updated thing
+        return self.get_thing(thing_uid)
+
+    def delete_thing(self, thing_uid: str, force: bool = False) -> bool:
+        """Delete a thing"""
+        if not thing_uid:
+            raise ValueError("Thing UID is required")
+
+        params = {}
+        if force:
+            params["force"] = "true"
+
+        response = self.session.delete(
+            f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}", params=params
+        )
+
+        if response.status_code == 404:
+            raise ValueError(f"Thing with UID '{thing_uid}' not found")
+
+        response.raise_for_status()
+        return True
+
+    def update_thing_config(
+        self, thing_uid: str, configuration: Dict[str, Any]
+    ) -> Thing:
+        """Update a thing's configuration"""
+        if not thing_uid:
+            raise ValueError("Thing UID is required")
+
+        response = self.session.put(
+            f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}/config",
+            json=configuration,
+        )
+        response.raise_for_status()
+
+        # Get the updated thing
+        return self.get_thing(thing_uid)
+
+    def get_thing_config_status(self, thing_uid: str) -> List[ConfigStatusMessage]:
+        """Get thing configuration status"""
+        if not thing_uid:
+            raise ValueError("Thing UID is required")
+
+        try:
+            response = self.session.get(
+                f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}/config/status"
+            )
+            response.raise_for_status()
+            return [ConfigStatusMessage(**msg) for msg in response.json()]
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                raise ValueError(f"Thing with UID '{thing_uid}' not found")
+            raise
+
+    def set_thing_enabled(self, thing_uid: str, enabled: bool) -> Thing:
+        """Set the enabled status of a thing"""
+        if not thing_uid:
+            raise ValueError("Thing UID is required")
+
+        enabled_str = "true" if enabled else "false"
+
+        response = self.session.put(
+            f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}/enable",
+            data=enabled_str,
+            headers={"Content-Type": "text/plain"},
+        )
+
+        if response.status_code == 404:
+            raise ValueError(f"Thing with UID '{thing_uid}' not found")
+
+        response.raise_for_status()
+
+        # Get the updated thing
+        return self.get_thing(thing_uid)
+
+    def get_thing_status(self, thing_uid: str) -> ThingStatusInfo:
+        """Get thing status"""
+        if not thing_uid:
+            raise ValueError("Thing UID is required")
+
+        try:
+            response = self.session.get(
+                f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}/status"
+            )
+            response.raise_for_status()
+            return ThingStatusInfo(**response.json())
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                raise ValueError(f"Thing with UID '{thing_uid}' not found")
+            raise
+
+    def get_thing_firmware_status(self, thing_uid: str) -> Optional[FirmwareStatusDTO]:
+        """Get thing firmware status"""
+        if not thing_uid:
+            raise ValueError("Thing UID is required")
+
+        try:
+            response = self.session.get(
+                f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}/firmware/status"
+            )
+            if response.status_code == 204:
+                return None  # No firmware status provided
+            response.raise_for_status()
+            return FirmwareStatusDTO(**response.json())
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                raise ValueError(f"Thing with UID '{thing_uid}' not found")
+            raise
+
+    def get_available_firmwares(self, thing_uid: str) -> List[FirmwareDTO]:
+        """Get available firmwares for a thing"""
+        if not thing_uid:
+            raise ValueError("Thing UID is required")
+
+        try:
+            response = self.session.get(
+                f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}/firmwares"
+            )
+            if response.status_code == 204:
+                return []  # No firmwares found
+            response.raise_for_status()
+            return [FirmwareDTO(**fw) for fw in response.json()]
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                raise ValueError(f"Thing with UID '{thing_uid}' not found")
             raise
 
     def list_rules(self, filter_tag: Optional[str] = None) -> List[Rule]:

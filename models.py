@@ -83,3 +83,47 @@ class EnrichedItemChannelLinkDTO(BaseModel):
     channelUID: str
     configuration: Dict[str, Any] = Field(default_factory=dict)
     editable: bool = True
+
+
+class ConfigStatusMessage(BaseModel):
+    """Configuration status message"""
+
+    parameterName: str
+    type: str  # e.g., "PENDING", "ERROR", "WARNING", "INFORMATION"
+    message: str
+    statusCode: Optional[int] = None
+
+
+class ThingDTO(BaseModel):
+    """Thing data for create/update operations"""
+
+    thingTypeUID: str
+    UID: str
+    label: Optional[str] = None
+    bridgeUID: Optional[str] = None
+    configuration: Dict[str, Any] = Field(default_factory=dict)
+    properties: Dict[str, str] = Field(default_factory=dict)
+    location: Optional[str] = None
+
+
+class FirmwareStatusDTO(BaseModel):
+    """Firmware status information"""
+
+    status: str
+    updatable: bool = False
+    version: Optional[str] = None
+    targetVersion: Optional[str] = None
+
+
+class FirmwareDTO(BaseModel):
+    """Firmware information"""
+
+    thingTypeUID: str
+    vendor: str
+    model: str
+    description: Optional[str] = None
+    version: str
+    prerequisiteVersion: Optional[str] = None
+    changelog: Optional[str] = None
+    onlineChangelog: Optional[str] = None
+    properties: Dict[str, str] = Field(default_factory=dict)

@@ -14,7 +14,12 @@ The server provides comprehensive access to openHAB's core components:
 
 ### Things
 - List all things
-- Get specific things by UID
+- Get, create, update, and delete things
+- Update thing configurations
+- Get thing configuration status
+- Set thing enabled/disabled status
+- Get thing status and firmware information
+- Get available firmware updates
 
 ### Rules
 - List, get, create, update, and delete rules
@@ -167,22 +172,40 @@ The server provides the following tools:
 ### Thing Management
 7. `list_things` - List all openHAB things
 8. `get_thing` - Get a specific openHAB thing by UID
+9. `create_thing` - Create a new openHAB thing
+10. `update_thing` - Update an existing openHAB thing
+11. `delete_thing` - Delete an openHAB thing
+12. `update_thing_config` - Update an openHAB thing's configuration
+13. `get_thing_config_status` - Get openHAB thing configuration status
+14. `set_thing_enabled` - Set the enabled status of an openHAB thing
+15. `get_thing_status` - Get openHAB thing status
+16. `get_thing_firmware_status` - Get openHAB thing firmware status
+17. `get_available_firmwares` - Get available firmwares for an openHAB thing
 
 ### Rule Management
-9. `list_rules` - List all openHAB rules, optionally filtered by tag
-10. `get_rule` - Get a specific openHAB rule by UID
-11. `create_rule` - Create a new openHAB rule
-12. `update_rule` - Update an existing openHAB rule with partial updates
-13. `update_rule_script_action` - Update a script action in an openHAB rule
-14. `delete_rule` - Delete an openHAB rule
-15. `run_rule_now` - Run an openHAB rule immediately
+18. `list_rules` - List all openHAB rules, optionally filtered by tag
+19. `get_rule` - Get a specific openHAB rule by UID
+20. `create_rule` - Create a new openHAB rule
+21. `update_rule` - Update an existing openHAB rule with partial updates
+22. `update_rule_script_action` - Update a script action in an openHAB rule
+23. `delete_rule` - Delete an openHAB rule
+24. `run_rule_now` - Run an openHAB rule immediately
 
 ### Script Management
-16. `list_scripts` - List all openHAB scripts (rules with tag 'Script' and no trigger)
-17. `get_script` - Get a specific openHAB script by ID
-18. `create_script` - Create a new openHAB script
-19. `update_script` - Update an existing openHAB script
-20. `delete_script` - Delete an openHAB script
+25. `list_scripts` - List all openHAB scripts (rules with tag 'Script' and no trigger)
+26. `get_script` - Get a specific openHAB script by ID
+27. `create_script` - Create a new openHAB script
+28. `update_script` - Update an existing openHAB script
+29. `delete_script` - Delete an openHAB script
+
+### Link Management
+30. `list_links` - List all openHAB item-channel links, optionally filtered by channel UID or item name
+31. `get_link` - Get a specific openHAB item-channel link
+32. `create_or_update_link` - Create or update an openHAB item-channel link
+33. `delete_link` - Delete a specific openHAB item-channel link
+34. `get_orphan_links` - Get orphaned openHAB item-channel links (links to non-existent channels)
+35. `purge_orphan_links` - Remove all orphaned openHAB item-channel links
+36. `delete_all_links_for_object` - Delete all openHAB links for a specific item or thing
 
 ## MCP Resources
 
