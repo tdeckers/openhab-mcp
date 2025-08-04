@@ -18,6 +18,21 @@ class ThingStatusInfo(BaseModel):
     description: Optional[str] = None
 
 
+class Channel(BaseModel):
+    """OpenHAB Channel model"""
+
+    uid: str
+    id: str
+    channelTypeUID: Optional[str] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+    configuration: Dict[str, Any] = Field(default_factory=dict)
+    properties: Dict[str, str] = Field(default_factory=dict)
+    defaultTags: List[str] = Field(default_factory=list)
+    kind: Optional[str] = None  # "STATE" or "TRIGGER"
+    acceptedItemType: Optional[str] = None
+
+
 class Thing(BaseModel):
     thingTypeUID: str
     UID: str
@@ -26,7 +41,7 @@ class Thing(BaseModel):
     configuration: Dict[str, Any] = Field(default_factory=dict)
     properties: Dict[str, str] = Field(default_factory=dict)
     statusInfo: Optional[ThingStatusInfo] = None
-    channels: List[Dict[str, Any]] = Field(default_factory=list)
+    channels: List[Channel] = Field(default_factory=list)
 
 
 class RuleStatus(BaseModel):
@@ -103,7 +118,9 @@ class ThingDTO(BaseModel):
     bridgeUID: Optional[str] = None
     configuration: Dict[str, Any] = Field(default_factory=dict)
     properties: Dict[str, str] = Field(default_factory=dict)
+    channels: List[Channel] = Field(default_factory=list)
     location: Optional[str] = None
+    editable: bool = True
 
 
 class FirmwareStatusDTO(BaseModel):
