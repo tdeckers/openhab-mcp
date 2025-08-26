@@ -22,6 +22,8 @@ services:
       - OPENHAB_API_TOKEN=${OPENHAB_API_TOKEN:-}
       - OPENHAB_USERNAME=${OPENHAB_USERNAME:-}
       - OPENHAB_PASSWORD=${OPENHAB_PASSWORD:-}
+      - TRANSPORT_TYPE=${TRANSPORT_TYPE:-}
+      - MCP_PORT=${MCP_PORT:-}
       - PORT=8081
     depends_on:
       openhab:

@@ -23,7 +23,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp",
+    "fastmcp",
     "python-dotenv",
     "requests",
     "pydantic",

@@ -15,6 +15,7 @@ ENV OPENHAB_URL=http://openhab:8080
 ENV OPENHAB_API_TOKEN=""
 ENV OPENHAB_USERNAME=""
 ENV OPENHAB_PASSWORD=""
-
+ENV TRANSPORT_TYPE="stdio"
+ENV MCP_PORT="8000"
 # Run the MCP server when the container launches
 CMD ["python", "openhab_mcp_server.py"]

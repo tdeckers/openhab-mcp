@@ -9,6 +9,7 @@ docker-run:
 		-e OPENHAB_API_TOKEN=${OPENHAB_API_TOKEN} \
 		-e OPENHAB_USERNAME=${OPENHAB_USERNAME} \
 		-e OPENHAB_PASSWORD=${OPENHAB_PASSWORD} \
+		-e TRANSPORT_TYPE=${TRANSPORT_TYPE} \
 		--name openhab-mcp \
 		openhab-mcp
 

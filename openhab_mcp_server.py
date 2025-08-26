@@ -4,6 +4,7 @@ OpenHAB MCP Server - An MCP server that interacts with a real openHAB instance.
 
 This server uses mcp.server for simplified MCP server implementation and
 connects to a real openHAB instance via its REST API.
+
 """
 
 import logging
@@ -18,9 +19,7 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.WARNING)
 
 # Import the MCP server implementation
-from mcp.server import FastMCP
-from mcp.server.stdio import stdio_server
-from mcp.types import INVALID_REQUEST, JSONRPCError
+from fastmcp.server import FastMCP
 
 # Import our modules
 from models import EnrichedItemChannelLinkDTO, Item, ItemChannelLinkDTO, Rule, Thing
@@ -39,6 +38,12 @@ OPENHAB_URL = os.environ.get("OPENHAB_URL", "http://localhost:8080")
 OPENHAB_API_TOKEN = os.environ.get("OPENHAB_API_TOKEN")
 OPENHAB_USERNAME = os.environ.get("OPENHAB_USERNAME")
 OPENHAB_PASSWORD = os.environ.get("OPENHAB_PASSWORD")
+TRANSPORT_TYPE = os.environ.get("TRANSPORT_TYPE", "stdio")
+MCP_PORT = os.environ.get("MCP_PORT", "8000")
+
+# possible FastMCP connection types
+TRANSPORT_TYPES = ["stdio", "http", "sse"]
+
 
 if not OPENHAB_API_TOKEN and not (OPENHAB_USERNAME and OPENHAB_PASSWORD):
     print(
@@ -264,7 +269,15 @@ def delete_all_links_for_object(object_name: str) -> bool:
 
 def main():
     """Main entry point for the OpenHAB MCP server."""
-    mcp.run()
+    if TRANSPORT_TYPE in TRANSPORT_TYPES:
+        if TRANSPORT_TYPE == "stdio":
+            mcp.run(transport=TRANSPORT_TYPE)
+        elif TRANSPORT_TYPE == "http":
+            mcp.run(transport=TRANSPORT_TYPE, host="127.0.0.1", port=int(MCP_PORT), path="/mcp")
+        elif TRANSPORT_TYPE == "sse":
+            mcp.run(transport=TRANSPORT_TYPE, host="127.0.0.1", port=int(MCP_PORT))
+    else:
+        print("Transport-Type has to be stdio, http or sse")
 
 
 if __name__ == "__main__":
