@@ -88,7 +88,7 @@ class OpenHABClient:
         )
 
         total_elements = len(filtered_items)
-        total_pages = (total_elements + page_size - 1) // page_size if page_size else 0
+        total_pages = (total_elements + page_size - 1) // page_size if page_size > 0 else 0
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
         paginated_items = filtered_items[start_idx:end_idx]
