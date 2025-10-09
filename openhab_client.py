@@ -10,6 +10,9 @@ from models import (
     FirmwareStatusDTO,
     Item,
     ItemChannelLinkDTO,
+    PaginatedItems,
+    PaginatedThings,
+    PaginationInfo,
     Rule,
     Thing,
     ThingDTO,
@@ -36,16 +39,70 @@ class OpenHABClient:
         elif username and password:
             self.session.auth = (username, password)
 
-    def list_items(self, filter_tag: Optional[str] = None) -> List[Item]:
-        """List all items, optionally filtered by tag"""
-        if filter_tag:
-            response = self.session.get(f"{self.base_url}/rest/items?tags={filter_tag}")
-        else:
-            response = self.session.get(f"{self.base_url}/rest/items")
-        response.raise_for_status()
-        items = [Item(**item) for item in response.json()]
+    def list_items(
+        self,
+        page: int = 1,
+        page_size: int = 15,
+        sort_order: str = "asc",
+        filter_tag: Optional[str] = None,
+        filter_type: Optional[str] = None,
+        filter_name: Optional[str] = None,
+        filter_label: Optional[str] = None,
+    ) -> PaginatedItems:
+        """List items with pagination and optional filtering."""
+        if page < 1:
+            raise ValueError("page must be greater than or equal to 1")
+        if page_size < 1:
+            raise ValueError("page_size must be greater than or equal to 1")
 
-        return items
+        sort_order_normalized = sort_order.lower()
+        if sort_order_normalized not in {"asc", "desc"}:
+            raise ValueError("sort_order must be either 'asc' or 'desc'")
+
+        params = {}
+        if filter_tag:
+            params["tags"] = filter_tag
+        if filter_type:
+            params["type"] = filter_type
+
+        response = self.session.get(f"{self.base_url}/rest/items", params=params)
+        response.raise_for_status()
+
+        raw_items = response.json()
+        filtered_items: List[Item] = []
+
+        for item_data in raw_items:
+            item_name = item_data.get("name", "")
+            item_label = item_data.get("label", "")
+
+            if filter_name and filter_name.lower() not in item_name.lower():
+                continue
+            if filter_label and filter_label.lower() not in (item_label or "").lower():
+                continue
+
+            filtered_items.append(Item(**item_data))
+
+        reverse_sort = sort_order_normalized == "desc"
+        filtered_items.sort(
+            key=lambda item: (item.name or "").lower(), reverse=reverse_sort
+        )
+
+        total_elements = len(filtered_items)
+        total_pages = (total_elements + page_size - 1) // page_size if page_size > 0 else 0
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_items = filtered_items[start_idx:end_idx]
+
+        pagination = PaginationInfo(
+            total_elements=total_elements,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            has_next=end_idx < total_elements,
+            has_previous=start_idx > 0,
+        )
+
+        return PaginatedItems(items=paginated_items, pagination=pagination)
 
     def get_item(self, item_name: str) -> Optional[Item]:
         """Get a specific item by name"""
@@ -224,11 +281,66 @@ class OpenHABClient:
         # Get the updated item
         return self.get_item(item_name)
 
-    def list_things(self) -> List[Thing]:
-        """List all things"""
+    def list_things(
+        self,
+        page: int = 1,
+        page_size: int = 50,
+        sort_order: str = "asc",
+        filter_uid: Optional[str] = None,
+        filter_label: Optional[str] = None,
+    ) -> PaginatedThings:
+        """List things with pagination and optional filtering."""
+        if page < 1:
+            raise ValueError("page must be greater than or equal to 1")
+        if page_size < 1:
+            raise ValueError("page_size must be greater than or equal to 1")
+
+        sort_order_normalized = sort_order.lower()
+        if sort_order_normalized not in {"asc", "desc"}:
+            raise ValueError("sort_order must be either 'asc' or 'desc'")
+
         response = self.session.get(f"{self.base_url}/rest/things")
         response.raise_for_status()
-        return [Thing(**thing) for thing in response.json()]
+
+        raw_things = response.json()
+        filtered_things: List[Thing] = []
+
+        for thing_data in raw_things:
+            # Remove channels to keep payloads lightweight
+            thing_data = dict(thing_data)  # create a shallow copy for safe mutation
+            thing_data.pop("channels", None)
+
+            thing_uid = thing_data.get("UID", "")
+            thing_label = thing_data.get("label", "")
+
+            if filter_uid and filter_uid.lower() not in thing_uid.lower():
+                continue
+            if filter_label and filter_label.lower() not in (thing_label or "").lower():
+                continue
+
+            filtered_things.append(Thing(**thing_data))
+
+        reverse_sort = sort_order_normalized == "desc"
+        filtered_things.sort(
+            key=lambda thing: (thing.UID or "").lower(), reverse=reverse_sort
+        )
+
+        total_elements = len(filtered_things)
+        total_pages = (total_elements + page_size - 1) // page_size if page_size > 0 else 0
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_things = filtered_things[start_idx:end_idx]
+
+        pagination = PaginationInfo(
+            total_elements=total_elements,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            has_next=end_idx < total_elements,
+            has_previous=start_idx > 0,
+        )
+
+        return PaginatedThings(things=paginated_things, pagination=pagination)
 
     def get_thing(self, thing_uid: str) -> Optional[Thing]:
         """Get a specific thing by UID"""
@@ -322,7 +434,7 @@ class OpenHABClient:
             return [ConfigStatusMessage(**msg) for msg in response.json()]
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
-                raise ValueError(f"Thing with UID '{thing_uid}' not found")
+                return []  # Return empty list if thing is not found
             raise
 
     def set_thing_enabled(self, thing_uid: str, enabled: bool) -> Thing:

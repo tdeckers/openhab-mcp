@@ -71,10 +71,26 @@ openhab_client = OpenHABClient(
 
 
 @mcp.tool()
-def list_items(filter_tag: Optional[str] = None) -> List[Item]:
-    """List all openHAB items, optionally filtered by tag"""
-    items = openhab_client.list_items(filter_tag)
-    return items
+def list_items(
+    page: int = 1,
+    page_size: int = 15,
+    sort_order: str = "asc",
+    filter_tag: Optional[str] = None,
+    filter_type: Optional[str] = None,
+    filter_name: Optional[str] = None,
+    filter_label: Optional[str] = None,
+) -> Dict[str, Any]:
+    """List openHAB items with pagination and optional filtering."""
+    items = openhab_client.list_items(
+        page=page,
+        page_size=page_size,
+        sort_order=sort_order,
+        filter_tag=filter_tag,
+        filter_type=filter_type,
+        filter_name=filter_name,
+        filter_label=filter_label,
+    )
+    return items.dict()
 
 
 @mcp.tool()
@@ -112,10 +128,22 @@ def update_item_state(item_name: str, state: str) -> Item:
 
 
 @mcp.tool()
-def list_things() -> List[Thing]:
-    """List all openHAB things"""
-    things = openhab_client.list_things()
-    return things
+def list_things(
+    page: int = 1,
+    page_size: int = 50,
+    sort_order: str = "asc",
+    filter_uid: Optional[str] = None,
+    filter_label: Optional[str] = None,
+) -> Dict[str, Any]:
+    """List openHAB things with pagination and optional filtering."""
+    things = openhab_client.list_things(
+        page=page,
+        page_size=page_size,
+        sort_order=sort_order,
+        filter_uid=filter_uid,
+        filter_label=filter_label,
+    )
+    return things.dict()
 
 
 @mcp.tool()
