@@ -9,10 +9,12 @@ This project provides an implementation of an MCP server that connects to a real
 The server provides comprehensive access to openHAB's core components:
 
 ### Items
+
 - List, get, create, update, and delete items
 - Update item states
 
 ### Things
+
 - List all things
 - Get, create, update, and delete things
 - Update thing configurations
@@ -22,11 +24,13 @@ The server provides comprehensive access to openHAB's core components:
 - Get available firmware updates
 
 ### Rules
+
 - List, get, create, update, and delete rules
 - Update rule script actions
 - Run rules on demand
 
 ### Scripts
+
 - List, get, create, update, and delete scripts
 
 When connected to Claude or Cline in VSCode, you can use natural language to control and manage your openHAB system, making home automation more accessible and intuitive.
@@ -35,19 +39,59 @@ When connected to Claude or Cline in VSCode, you can use natural language to con
 
 - Python 3.7+
 
-## Installation and Usage
+## Quick Start (prebuilt image)
 
-The recommended way to run the OpenHAB MCP Server is using Podman:
+The official image is published to the GitHub Container Registry (`ghcr.io/tdeckers/openhab-mcp`). Pulling this image is the fastest way to get the MCP server running.
 
-To run the MCP using Podman, follow these steps:
+1. (Optional for private registries) Authenticate with GHCR:
 
-1. Build the Podman image:
+   ```bash
+   podman login ghcr.io
+   # or: docker login ghcr.io
+   ```
+
+2. Run the container with Podman (add `-e OPENHAB_USERNAME=...` and `-e OPENHAB_PASSWORD=...` if your OpenHAB instance requires basic authentication):
+
+   ```bash
+   podman run -d --rm -p 8081:8080 \
+     -e OPENHAB_URL=http://your-openhab-host:8080 \
+     -e OPENHAB_API_TOKEN=your-api-token \
+     --name openhab-mcp \
+     ghcr.io/tdeckers/openhab-mcp:latest
+
+  ```
+
+   Using Docker instead?
+   ```bash
+   docker run -d --rm -p 8081:8080 \
+     -e OPENHAB_URL=http://your-openhab-host:8080 \
+     -e OPENHAB_API_TOKEN=your-api-token \
+     --name openhab-mcp \
+     ghcr.io/tdeckers/openhab-mcp:latest
+  ```
+
+3. Stop the container when you are done:
+
+   ```bash
+   podman stop openhab-mcp
+   # or: docker stop openhab-mcp
+   ```
+
+The container exposes port 8080 internally, but the examples map it to port 8081 on the host to avoid conflicts with an existing OpenHAB installation.
+
+## Optional: Build and run a custom image
+
+If you need to modify the code, build and tag the image locally instead:
+
+1. Build the image:
+
    ```bash
    make docker-build
    # or directly: podman build -t openhab-mcp .
    ```
 
-2. Run the Podman container:
+2. Run your custom image:
+
    ```bash
    make docker-run
    # or directly:
@@ -58,13 +102,14 @@ To run the MCP using Podman, follow these steps:
      openhab-mcp
    ```
 
-3. To stop the container:
+   Ensure the `OPENHAB_URL`, `OPENHAB_API_TOKEN`, and optional `OPENHAB_USERNAME`/`OPENHAB_PASSWORD` variables are set in your shell before invoking `make docker-run`.
+
+3. Stop the custom container:
+
    ```bash
    make docker-stop
    # or directly: podman stop openhab-mcp
    ```
-
-Note: The container exposes port 8080 internally, but we map it to port 8081 on the host to avoid conflicts with OpenHAB which typically uses port 8080.
 
 ## Using with Claude and Cline in VSCode
 
@@ -77,7 +122,7 @@ You can connect this OpenHAB MCP server to Claude or Cline in VSCode to interact
 
 ### Configuration for Claude Desktop
 
-1. Build and run the Podman container as described in the "Installation and Usage" section.
+1. Run the container using the steps in "Quick Start" (published image) or "Optional: Build and run a custom image".
 2. Create a configuration file for Claude Desktop:
 
 Save the following as `claude_desktop_config.json` in your Claude Desktop configuration directory:
@@ -103,7 +148,7 @@ Save the following as `claude_desktop_config.json` in your Claude Desktop config
         "OPENHAB_API_TOKEN=your-api-token",
         "--name",
         "openhab-mcp",
-        "openhab-mcp"
+        "ghcr.io/tdeckers/openhab-mcp:latest"
       ]
     }
   ]
@@ -112,7 +157,7 @@ Save the following as `claude_desktop_config.json` in your Claude Desktop config
 
 ### Configuration for Cline in VSCode
 
-1. Build and run the Podman container as described in the "Installation and Usage" section.
+1. Run the container using the steps in "Quick Start" (published image) or "Optional: Build and run a custom image".
 2. Create a configuration file for Cline:
 
 Save the following as `mcp.json` in your Cline configuration directory:
@@ -137,7 +182,7 @@ Save the following as `mcp.json` in your Cline configuration directory:
         "OPENHAB_API_TOKEN=your-api-token",
         "--name",
         "openhab-mcp",
-        "openhab-mcp"
+        "ghcr.io/tdeckers/openhab-mcp:latest"
       ]
     }
   ]
@@ -151,6 +196,7 @@ Save the following as `mcp.json` in your Cline configuration directory:
 3. You should now be able to interact with your OpenHAB instance through the AI assistant
 
 Example prompt to test the connection:
+
 ```
 Can you list all the items in my OpenHAB system?
 ```
@@ -183,6 +229,7 @@ The server provides the following tools:
 17. `get_available_firmwares` - Get available firmwares for an openHAB thing
 
 ### Rule Management
+
 18. `list_rules` - List all openHAB rules, optionally filtered by tag
 19. `get_rule` - Get a specific openHAB rule by UID
 20. `create_rule` - Create a new openHAB rule
@@ -192,6 +239,7 @@ The server provides the following tools:
 24. `run_rule_now` - Run an openHAB rule immediately
 
 ### Script Management
+
 25. `list_scripts` - List all openHAB scripts (rules with tag 'Script' and no trigger)
 26. `get_script` - Get a specific openHAB script by ID
 27. `create_script` - Create a new openHAB script
@@ -199,6 +247,7 @@ The server provides the following tools:
 29. `delete_script` - Delete an openHAB script
 
 ### Link Management
+
 30. `list_links` - List all openHAB item-channel links, optionally filtered by channel UID or item name
 31. `get_link` - Get a specific openHAB item-channel link
 32. `create_or_update_link` - Create or update an openHAB item-channel link
