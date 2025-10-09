@@ -48,16 +48,27 @@ def main():
 
     try:
         print("\n--- Testing list_items() ---")
-        items = client.list_items()
-        print(f"Found {len(items)} items:")
+        items_page = client.list_items(page_size=10)
+        items = items_page.items
+        pagination = items_page.pagination
+        print(
+            f"Found {pagination.total_elements} items "
+            f"(showing {len(items)} on page {pagination.page}/{max(pagination.total_pages, 1)}):"
+        )
 
         for item in items[:10]:  # Show first 10 items
             print(f"  - {item.name} ({item.type}): {item.state}")
             if item.label:
                 print(f"    Label: {item.label}")
 
-        if len(items) > 10:
-            print(f"  ... and {len(items) - 10} more items")
+        if pagination.has_next:
+            remaining = max(
+                0,
+                pagination.total_elements
+                - pagination.page * pagination.page_size,
+            )
+            if remaining > 0:
+                print(f"  ... and {remaining} more items")
 
     except Exception as e:
         print(f"Error listing items: {e}")
@@ -65,8 +76,13 @@ def main():
 
     try:
         print("\n--- Testing list_things() ---")
-        things = client.list_things()
-        print(f"Found {len(things)} things:")
+        things_page = client.list_things(page_size=5)
+        things = things_page.things
+        pagination = things_page.pagination
+        print(
+            f"Found {pagination.total_elements} things "
+            f"(showing {len(things)} on page {pagination.page}/{max(pagination.total_pages, 1)}):"
+        )
 
         for thing in things[:5]:  # Show first 5 things
             status = thing.statusInfo.status if thing.statusInfo else "UNKNOWN"
@@ -74,8 +90,14 @@ def main():
             if thing.label:
                 print(f"    Label: {thing.label}")
 
-        if len(things) > 5:
-            print(f"  ... and {len(things) - 5} more things")
+        if pagination.has_next:
+            remaining = max(
+                0,
+                pagination.total_elements
+                - pagination.page * pagination.page_size,
+            )
+            if remaining > 0:
+                print(f"  ... and {remaining} more things")
 
     except Exception as e:
         print(f"Error listing things: {e}")

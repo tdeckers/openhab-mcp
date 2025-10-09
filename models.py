@@ -144,3 +144,28 @@ class FirmwareDTO(BaseModel):
     changelog: Optional[str] = None
     onlineChangelog: Optional[str] = None
     properties: Dict[str, str] = Field(default_factory=dict)
+
+
+class PaginationInfo(BaseModel):
+    """Information describing a paginated collection."""
+
+    total_elements: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_next: bool
+    has_previous: bool
+
+
+class PaginatedItems(BaseModel):
+    """Paginated response wrapper for items."""
+
+    items: List[Item]
+    pagination: PaginationInfo
+
+
+class PaginatedThings(BaseModel):
+    """Paginated response wrapper for things."""
+
+    things: List[Thing]
+    pagination: PaginationInfo
