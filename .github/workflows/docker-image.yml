@@ -44,10 +44,10 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v5
-                labels: ${{ steps.meta.outputs.labels }}
-                cache-from: type=gha
-                cache-to: type=gha,mode=max
+        with:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
