@@ -434,7 +434,7 @@ class OpenHABClient:
             return [ConfigStatusMessage(**msg) for msg in response.json()]
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
-                raise ValueError(f"Thing with UID '{thing_uid}' not found")
+                return []  # Return empty list if thing is not found
             raise
 
     def set_thing_enabled(self, thing_uid: str, enabled: bool) -> Thing:
