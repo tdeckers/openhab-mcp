@@ -90,7 +90,7 @@ def list_items(
         filter_name=filter_name,
         filter_label=filter_label,
     )
-    return items.model_dump()
+    return items.dict()
 
 
 @mcp.tool()
@@ -143,7 +143,7 @@ def list_things(
         filter_uid=filter_uid,
         filter_label=filter_label,
     )
-    return things.model_dump()
+    return things.dict()
 
 
 @mcp.tool()
