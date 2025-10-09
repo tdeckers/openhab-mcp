@@ -162,7 +162,7 @@ If configured correctly, Claude/Cline will use the MCP server to fetch and displ
 The server provides the following tools:
 
 ### Item Management
-1. `list_items` - List all openHAB items, optionally filtered by tag
+1. `list_items` - Paginated list of openHAB items with optional tag, type, name, and label filters
 2. `get_item` - Get a specific openHAB item by name
 3. `create_item` - Create a new openHAB item
 4. `update_item` - Update an existing openHAB item
@@ -170,7 +170,7 @@ The server provides the following tools:
 6. `update_item_state` - Update just the state of an openHAB item
 
 ### Thing Management
-7. `list_things` - List all openHAB things
+7. `list_things` - Paginated list of openHAB things with optional UID and label filters
 8. `get_thing` - Get a specific openHAB thing by UID
 9. `create_thing` - Create a new openHAB thing
 10. `update_thing` - Update an existing openHAB thing
