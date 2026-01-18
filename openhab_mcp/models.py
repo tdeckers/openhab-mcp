@@ -71,10 +71,10 @@ class ItemBase(BaseModel):
     type: Optional[str] = Field(None, description="Type of the item")
     label: Optional[str] = Field(None, description="Display label for the item")
     category: Optional[str] = Field(None, description="Category of the item")
-    semantic_tags: List[str] = Field(default_factory=list, description="List of semantic tags for the item", alias="semanticTags")
-    non_semantic_tags: List[str] = Field(default_factory=list, description="List of non-semantic tag UIDs for the item", alias="nonSemanticTags")
+    semantic_tags: Optional[List[str]] = Field(None, description="List of semantic tags for the item", alias="semanticTags")
+    non_semantic_tags: Optional[List[str]] = Field(None, description="List of non-semantic tag UIDs for the item", alias="nonSemanticTags")
     group_type: Optional[str] = Field(None, description="Type of the group", alias="groupType")
-    function: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Function of the item")
+    function: Optional[Dict[str, Any]] = Field(None, description="Function of the item")
     unit_symbol: Optional[str] = Field(None, description="Unit symbol for the item", alias="unitSymbol")
     
     @model_validator(mode='after')
@@ -92,6 +92,7 @@ class ItemCreate(ItemBase):
 
 class ItemUpdate(ItemBase):
     name: str = Field(..., description="Name of the item")
+    type: str = Field(..., description="Type of the item")
 
 class ThingBase(BaseModel):
     UID: Optional[str] = Field(None, description="UID of the thing")

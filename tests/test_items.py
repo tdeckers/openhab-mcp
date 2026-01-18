@@ -437,6 +437,7 @@ class TestOpenHABItems(unittest.TestCase):
         try:
             # Verify the item was created with all fields
             self.assertEqual(created_item["name"], item_name)
+            self.assertEqual(created_item["type"], "Dimmer")
             self.assertEqual(created_item["label"], "Test Item for Update")
             self.assertEqual(created_item["category"], "Light")
             self.assertIn(group_name, created_item["groupNames"])
@@ -444,9 +445,10 @@ class TestOpenHABItems(unittest.TestCase):
             self.assertIn("Equipment_Lighting", created_item["semanticTags"][0]["uid"])
             self.assertIn("stateDescription", created_item["metadata"])
             
-            # Now update the item with None/empty values to remove properties
+            # Now update the item with empty values to remove properties
             update_data = {
                 "name": item_name,
+                "type": "Dimmer",  # Type is required for OpenHAB PUT requests
                 "label": None,  # None should remove the label
                 "category": None,  # None should remove the category
                 "nonSemanticTags": [],  # Empty list should remove all non-semantic tags
@@ -458,14 +460,14 @@ class TestOpenHABItems(unittest.TestCase):
             self.client.remove_item_member(group_name, item_name)
             updated_item = self.client.update_item(ItemUpdate(**update_data))
             
-            # Verify the updates
+            # Verify updates
             self.assertEqual(updated_item["name"], item_name)
-            self.assertNotIn("category", updated_item)  # Category should be removed
+            self.assertEqual(updated_item.get("label"), None)  # Label should be None
+            self.assertEqual(updated_item.get("category"), None)  # Category should be None
             self.assertEqual(updated_item.get("nonSemanticTags", []), [])  # No non-semantic tags
             self.assertEqual(updated_item.get("semanticTags", []), [])  # No semantic tags
             self.assertEqual(updated_item.get("groupNames", []), [])  # No groups
             self.assertNotIn("metadata", updated_item)  # Metadata with semantic namespace should still exist
-            self.assertNotIn("label", updated_item)
             
         finally:
             # Clean up

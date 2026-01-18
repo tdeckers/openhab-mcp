@@ -261,8 +261,7 @@ class OpenHABClient:
         if hasattr(item, 'nonSemanticTags') and item.nonSemanticTags:
             tags.extend(item.nonSemanticTags)
         
-        if tags:
-            payload['tags'] = tags
+        payload['tags'] = tags
             
         # Remove the original fields as they're not part of the API
         payload.pop('semanticTags', None)
@@ -274,7 +273,7 @@ class OpenHABClient:
             json=payload,
             headers={"Content-Type": "application/json"}
         )
-        
+
         if response.status_code == 400:
             raise ValueError("Invalid item payload")
         if response.status_code == 404:
@@ -1073,19 +1072,35 @@ class OpenHABClient:
         update_data = rule.model_dump(exclude_unset=True, by_alias=True)
         
         # Handle actions specially since they can be updated by ID
-        if 'actions' in update_data and update_data['actions']:
-            # Create a mapping of action IDs to their indices for faster lookup
-            action_map = {action['id']: i for i, action in enumerate(current_rule['actions'])}
-            
-            # Update or add each action from the update
-            for updated_action in update_data['actions']:
-                if 'id' in updated_action and updated_action['id'] in action_map:
-                    # Update existing action
-                    idx = action_map[updated_action['id']]
-                    current_rule['actions'][idx].update(updated_action)
-                else:
-                    # Add new action
-                    current_rule['actions'].append(updated_action)
+        if 'actions' in update_data:
+            if update_data['actions']:
+                # Create a mapping of action IDs to their indices for faster lookup
+                action_map = {action['id']: i for i, action in enumerate(current_rule['actions'])}
+                
+                # Collect IDs of actions that should be kept
+                updated_action_ids = set()
+                
+                # Update or add each action from the update
+                for updated_action in update_data['actions']:
+                    if 'id' in updated_action and updated_action['id'] in action_map:
+                        # Update existing action
+                        idx = action_map[updated_action['id']]
+                        current_rule['actions'][idx].update(updated_action)
+                        updated_action_ids.add(updated_action['id'])
+                    else:
+                        # Add new action
+                        current_rule['actions'].append(updated_action)
+                        if 'id' in updated_action:
+                            updated_action_ids.add(updated_action['id'])
+                
+                # Remove actions that are not in the update (implicit deletion)
+                current_rule['actions'] = [
+                    action for action in current_rule['actions']
+                    if 'id' not in action or action['id'] in updated_action_ids
+                ]
+            else:
+                # If actions is an empty list, remove all actions
+                current_rule['actions'] = []
             
             # Remove the actions from update_data to prevent overwriting our changes
             del update_data['actions']

@@ -154,7 +154,6 @@ Example configuration:
     }
   ]
 }
-}
 ```
 
 ### Configuration for Cline in VSCode
