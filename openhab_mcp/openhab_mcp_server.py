@@ -252,7 +252,7 @@ def update_item_state(
             "This is a text",
         ],
     ),
-) -> Dict[str, Any]:
+) -> bool:
     """
     Update the state of an openHAB item
 
@@ -279,7 +279,7 @@ def send_command(
             "This is a text",
         ],
     ),
-) -> Dict[str, Any]:
+) -> bool:
     """
     Send a command to an openHAB item
 
