@@ -57,7 +57,7 @@ The easiest way to get started is using the provided Docker Compose configuratio
 
 3. Start the service:
    ```bash
-   docker-compose -f docker/docker-compose.yml up -d
+   docker compose -f docker/docker-compose.yml up -d
    ```
 
 ## Manual Installation
@@ -289,7 +289,7 @@ pytest tests/
 ### Building the Docker Image
 
 ```bash
-docker build -t openhab-mcp .
+docker build -t openhab-mcp . # Run in docker folder
 ```
 
 ## License
