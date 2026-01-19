@@ -701,13 +701,11 @@ def create_rule(
     Args:
         rule: Rule to create
     """
-    rule.raise_for_errors()
     return openhab_client.create_rule(rule)
 
 
 @mcp.tool()
 def update_rule(
-    rule_uid: str = Field(..., description="UID of the rule to update"),
     rule_updates: RuleUpdate = Field(
         ..., description="Partial updates to apply to the rule"
     ),
@@ -716,10 +714,9 @@ def update_rule(
     Update an existing openHAB rule with partial updates.
 
     Args:
-        rule_uid: UID of the rule to update
         rule_updates: Partial updates to apply to the rule
     """
-    return openhab_client.update_rule(rule_uid, rule_updates)
+    return openhab_client.update_rule(rule_updates)
 
 
 @mcp.tool()
