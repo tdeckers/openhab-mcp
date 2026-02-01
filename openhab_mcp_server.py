@@ -37,13 +37,16 @@ from models import (
 )
 from openhab_client import OpenHABClient
 
-mcp = FastMCP("OpenHAB MCP Server")
-
 # Load environment variables from .env file
 env_file = Path(".env")
 if env_file.exists():
     print(f"Loading environment variables from {env_file}", file=sys.stderr)
     load_dotenv(env_file, verbose=True)
+
+MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio").strip().lower()
+MCP_HOST = "0.0.0.0" if MCP_TRANSPORT == "sse" else "127.0.0.1"
+
+mcp = FastMCP("OpenHAB MCP Server", host=MCP_HOST)
 
 # Get OpenHAB connection settings from environment variables
 OPENHAB_URL = os.environ.get("OPENHAB_URL", "http://localhost:8080")
@@ -365,7 +368,10 @@ def delete_all_links_for_object(object_name: str) -> bool:
 
 def main():
     """Main entry point for the OpenHAB MCP server."""
-    mcp.run()
+    if MCP_TRANSPORT == "sse":
+        mcp.run(transport="sse")
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":
