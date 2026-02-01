@@ -22,7 +22,7 @@ services:
       - OPENHAB_API_TOKEN=${OPENHAB_API_TOKEN:-}
       - OPENHAB_USERNAME=${OPENHAB_USERNAME:-}
       - OPENHAB_PASSWORD=${OPENHAB_PASSWORD:-}
-      - MCP_TRANSPORT=http
+      - MCP_MODE=remote
     depends_on:
       openhab:
         condition: service_healthy

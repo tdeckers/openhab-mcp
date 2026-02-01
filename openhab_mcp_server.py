@@ -6,16 +6,20 @@ This server uses mcp.server for simplified MCP server implementation and
 connects to a real openHAB instance via its REST API.
 """
 
+import contextlib
 import logging
 import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import uvicorn
 from dotenv import load_dotenv
 
 # Import the MCP server implementation
 from mcp.server import FastMCP
+from starlette.applications import Starlette
+from starlette.routing import Mount
 
 # Import our modules
 from models import (
@@ -41,22 +45,39 @@ if env_file.exists():
     print(f"Loading environment variables from {env_file}", file=sys.stderr)
     load_dotenv(env_file, verbose=True)
 
+MCP_MODE_ENV = os.environ.get("MCP_MODE")
 MCP_TRANSPORT_ENV = os.environ.get("MCP_TRANSPORT")
-if MCP_TRANSPORT_ENV is None:
-    MCP_TRANSPORT = "stdio"
+
+if MCP_MODE_ENV is None:
+    MCP_MODE = "stdio"
 else:
-    MCP_TRANSPORT = MCP_TRANSPORT_ENV.strip().lower()
-    if MCP_TRANSPORT in ("http", "streamable-http", "streamable_http"):
-        MCP_TRANSPORT = "streamable-http"
-    elif MCP_TRANSPORT not in ("stdio", "sse"):
+    MCP_MODE = MCP_MODE_ENV.strip().lower()
+    if MCP_MODE not in ("stdio", "remote"):
         logging.warning(
-            "Invalid MCP_TRANSPORT value '%s'. Expected 'stdio', 'sse', or "
-            "'http'/'streamable-http'. Falling back to 'stdio'.",
+            "Invalid MCP_MODE value '%s'. Expected 'stdio' or 'remote'. "
+            "Falling back to 'stdio'.",
+            MCP_MODE_ENV,
+        )
+        MCP_MODE = "stdio"
+
+if MCP_TRANSPORT_ENV is not None and MCP_MODE_ENV is None:
+    transport = MCP_TRANSPORT_ENV.strip().lower()
+    if transport in ("http", "streamable-http", "streamable_http", "sse"):
+        MCP_MODE = "remote"
+        logging.warning(
+            "MCP_TRANSPORT is deprecated. Use MCP_MODE=remote instead.",
+        )
+    else:
+        logging.warning(
+            "Invalid MCP_TRANSPORT value '%s'. Use MCP_MODE instead.",
             MCP_TRANSPORT_ENV,
         )
-        MCP_TRANSPORT = "stdio"
+elif MCP_TRANSPORT_ENV is not None and MCP_MODE_ENV is not None:
+    logging.warning(
+        "MCP_TRANSPORT is deprecated and ignored when MCP_MODE is set.",
+    )
 
-if MCP_TRANSPORT in ("sse", "streamable-http"):
+if MCP_MODE == "remote":
     mcp = FastMCP("OpenHAB MCP Server", host="0.0.0.0")
 else:
     mcp = FastMCP("OpenHAB MCP Server")
@@ -382,12 +403,29 @@ def delete_all_links_for_object(object_name: str) -> bool:
     return openhab_client.delete_all_links_for_object(object_name)
 
 
+def _build_remote_app() -> Starlette:
+    mcp.settings.streamable_http_path = "/"
+    mcp.settings.sse_path = "/"
+
+    @contextlib.asynccontextmanager
+    async def lifespan(app: Starlette):
+        async with mcp.session_manager.run():
+            yield
+
+    return Starlette(
+        routes=[
+            Mount("/mcp", app=mcp.streamable_http_app()),
+            Mount("/sse", app=mcp.sse_app()),
+        ],
+        lifespan=lifespan,
+    )
+
+
 def main():
     """Main entry point for the OpenHAB MCP server."""
-    if MCP_TRANSPORT == "sse":
-        mcp.run(transport="sse")
-    elif MCP_TRANSPORT == "streamable-http":
-        mcp.run(transport="streamable-http")
+    if MCP_MODE == "remote":
+        app = _build_remote_app()
+        uvicorn.run(app, host=mcp.settings.host, port=mcp.settings.port)
     else:
         mcp.run()
 
