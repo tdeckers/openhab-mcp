@@ -56,27 +56,25 @@ By default the server uses stdio for MCP. For remote HTTP clients, set `MCP_MODE
 
    ```bash
    podman run -d --rm -p 8081:8000 \
-
-  -e MCP_MODE=remote \
-     -e OPENHAB_URL=<http://your-openhab-host:8080> \
-     -e OPENHAB_API_TOKEN=your-api-token \
-     --name openhab-mcp \
-     ghcr.io/tdeckers/openhab-mcp:latest
-
-   ```
-
-   Using Docker instead?
-
-   ```bash
-   docker run -d --rm -p 8081:8000 \
-  -e MCP_MODE=remote \
+     -e MCP_MODE=remote \
      -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
      ghcr.io/tdeckers/openhab-mcp:latest
    ```
 
-1. Stop the container when you are done:
+   Using Docker instead?
+
+   ```bash
+   docker run -d --rm -p 8081:8000 \
+     -e MCP_MODE=remote \
+     -e OPENHAB_URL=http://your-openhab-host:8080 \
+     -e OPENHAB_API_TOKEN=your-api-token \
+     --name openhab-mcp \
+     ghcr.io/tdeckers/openhab-mcp:latest
+   ```
+
+3. Stop the container when you are done:
 
    ```bash
    podman stop openhab-mcp
@@ -102,13 +100,11 @@ If you need to modify the code, build and tag the image locally instead:
    make docker-run
    # or directly:
    podman run -d --rm -p 8081:8000 \
-
-  -e MCP_MODE=remote \
-     -e OPENHAB_URL=<http://your-openhab-host:8080> \
+     -e MCP_MODE=remote \
+     -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
      openhab-mcp
-
    ```
 
    Ensure the `OPENHAB_URL`, `OPENHAB_API_TOKEN`, and optional `OPENHAB_USERNAME`/`OPENHAB_PASSWORD` variables are set in your shell before invoking `make docker-run`.
