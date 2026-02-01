@@ -43,10 +43,23 @@ if env_file.exists():
     print(f"Loading environment variables from {env_file}", file=sys.stderr)
     load_dotenv(env_file, verbose=True)
 
-MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio").strip().lower()
-MCP_HOST = "0.0.0.0" if MCP_TRANSPORT == "sse" else "127.0.0.1"
+MCP_TRANSPORT_ENV = os.environ.get("MCP_TRANSPORT")
+if MCP_TRANSPORT_ENV is None:
+    MCP_TRANSPORT = "stdio"
+else:
+    MCP_TRANSPORT = MCP_TRANSPORT_ENV.strip().lower()
+    if MCP_TRANSPORT not in ("stdio", "sse"):
+        logging.warning(
+            "Invalid MCP_TRANSPORT value '%s'. Expected 'stdio' or 'sse'. "
+            "Falling back to 'stdio'.",
+            MCP_TRANSPORT_ENV,
+        )
+        MCP_TRANSPORT = "stdio"
 
-mcp = FastMCP("OpenHAB MCP Server", host=MCP_HOST)
+if MCP_TRANSPORT == "sse":
+    mcp = FastMCP("OpenHAB MCP Server", host="0.0.0.0")
+else:
+    mcp = FastMCP("OpenHAB MCP Server")
 
 # Get OpenHAB connection settings from environment variables
 OPENHAB_URL = os.environ.get("OPENHAB_URL", "http://localhost:8080")

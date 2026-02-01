@@ -43,7 +43,7 @@ When connected to Claude or Cline in VSCode, you can use natural language to con
 
 The official image is published to the GitHub Container Registry (`ghcr.io/tdeckers/openhab-mcp`). Pulling this image is the fastest way to get the MCP server running.
 
-By default the server uses stdio for MCP. To expose an SSE endpoint over HTTP, set `MCP_TRANSPORT=sse` and map the container port.
+By default the server uses stdio for MCP. To expose an SSE endpoint over HTTP, set `MCP_TRANSPORT=sse` and map the container port. The container examples below use SSE; for stdio, omit `MCP_TRANSPORT` and the port mapping.
 
 1. (Optional for private registries) Authenticate with GHCR:
 
