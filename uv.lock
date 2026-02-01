@@ -360,6 +360,8 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
+    { name = "starlette" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -384,6 +386,8 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "python-dotenv" },
     { name = "requests" },
+    { name = "starlette" },
+    { name = "uvicorn" },
 ]
 provides-extras = ["dev"]
 

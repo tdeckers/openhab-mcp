@@ -27,6 +27,8 @@ dependencies = [
     "python-dotenv",
     "requests",
     "pydantic",
+    "starlette",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]

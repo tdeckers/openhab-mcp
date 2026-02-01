@@ -43,7 +43,7 @@ When connected to Claude or Cline in VSCode, you can use natural language to con
 
 The official image is published to the GitHub Container Registry (`ghcr.io/tdeckers/openhab-mcp`). Pulling this image is the fastest way to get the MCP server running.
 
-By default the server uses stdio for MCP. For remote HTTP clients, Streamable HTTP is preferred (`MCP_TRANSPORT=http`) and exposes `http://HOST:PORT/mcp`. SSE is still supported for backwards compatibility at `http://HOST:PORT/sse` (`MCP_TRANSPORT=sse`). The container examples below use Streamable HTTP; for stdio, omit `MCP_TRANSPORT` and the port mapping. Streamable HTTP supports session headers like `Mcp-Session-Id` for stateful clients.
+By default the server uses stdio for MCP. For remote HTTP clients, set `MCP_MODE=remote` to expose both Streamable HTTP at `http://HOST:PORT/mcp` and SSE at `http://HOST:PORT/sse` from the same container. The container examples below use remote mode; for stdio, omit `MCP_MODE` and the port mapping. Streamable HTTP supports session headers like `Mcp-Session-Id` for stateful clients.
 
 1. (Optional for private registries) Authenticate with GHCR:
 
@@ -56,8 +56,9 @@ By default the server uses stdio for MCP. For remote HTTP clients, Streamable HT
 
    ```bash
    podman run -d --rm -p 8081:8000 \
-     -e MCP_TRANSPORT=http \
-     -e OPENHAB_URL=http://your-openhab-host:8080 \
+
+  -e MCP_MODE=remote \
+     -e OPENHAB_URL=<http://your-openhab-host:8080> \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
      ghcr.io/tdeckers/openhab-mcp:latest
@@ -68,21 +69,21 @@ By default the server uses stdio for MCP. For remote HTTP clients, Streamable HT
 
    ```bash
    docker run -d --rm -p 8081:8000 \
-     -e MCP_TRANSPORT=http \
+  -e MCP_MODE=remote \
      -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
      ghcr.io/tdeckers/openhab-mcp:latest
    ```
 
-3. Stop the container when you are done:
+1. Stop the container when you are done:
 
    ```bash
    podman stop openhab-mcp
    # or: docker stop openhab-mcp
    ```
 
-When running with `MCP_TRANSPORT=http` (Streamable HTTP) or `MCP_TRANSPORT=sse`, the container listens on port 8000 internally, but the examples map it to port 8081 on the host to avoid conflicts with an existing OpenHAB installation. Streamable HTTP clients connect to `http://HOST:PORT/mcp`, while SSE clients connect to `http://HOST:PORT/sse`.
+When running with `MCP_MODE=remote`, the container listens on port 8000 internally, but the examples map it to port 8081 on the host to avoid conflicts with an existing OpenHAB installation. Streamable HTTP clients connect to `http://HOST:PORT/mcp`, while SSE clients connect to `http://HOST:PORT/sse`.
 
 ## Optional: Build and run a custom image
 
@@ -101,11 +102,13 @@ If you need to modify the code, build and tag the image locally instead:
    make docker-run
    # or directly:
    podman run -d --rm -p 8081:8000 \
-     -e MCP_TRANSPORT=http \
-     -e OPENHAB_URL=http://your-openhab-host:8080 \
+
+  -e MCP_MODE=remote \
+     -e OPENHAB_URL=<http://your-openhab-host:8080> \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
      openhab-mcp
+
    ```
 
    Ensure the `OPENHAB_URL`, `OPENHAB_API_TOKEN`, and optional `OPENHAB_USERNAME`/`OPENHAB_PASSWORD` variables are set in your shell before invoking `make docker-run`.
@@ -149,7 +152,7 @@ Save the following as `claude_desktop_config.json` in your Claude Desktop config
         "-p",
         "8081:8000",
         "-e",
-        "MCP_TRANSPORT=http",
+        "MCP_MODE=remote",
         "-e",
         "OPENHAB_URL=http://your-openhab-host:8080",
         "-e",
@@ -185,7 +188,7 @@ Save the following as `mcp.json` in your Cline configuration directory:
         "-p",
         "8081:8000",
         "-e",
-        "MCP_TRANSPORT=http",
+        "MCP_MODE=remote",
         "-e",
         "OPENHAB_URL=http://your-openhab-host:8080",
         "-e",
@@ -215,8 +218,7 @@ If configured correctly, Claude/Cline will use the MCP server to fetch and displ
 
 ### Transport Endpoints (Streamable HTTP vs SSE)
 
-- **Streamable HTTP (preferred):** set `MCP_TRANSPORT=http` (normalized internally to `streamable-http`) and connect to `http://HOST:PORT/mcp`
-- **SSE (backwards compatible):** set `MCP_TRANSPORT=sse` and connect to `http://HOST:PORT/sse`
+- **Remote mode:** set `MCP_MODE=remote` and connect to `http://HOST:PORT/mcp` (Streamable HTTP) or `http://HOST:PORT/sse` (SSE)
 
 If a Streamable HTTP client POSTs to `/sse`, the server should return `405 Method Not Allowed` because `/sse` only accepts SSE GET/subscribe requests (verify against your FastMCP version).
 
@@ -224,8 +226,8 @@ If a Streamable HTTP client POSTs to `/sse`, the server should return `405 Metho
 
 Use these quick checks after deployment:
 
-- **Streamable HTTP (preferred)**
-  - Ensure `MCP_TRANSPORT=http` is set.
+- **Streamable HTTP**
+  - Ensure `MCP_MODE=remote` is set.
   - Initialize with a POST to `/mcp` (client libraries handle this automatically).
   - Manual probe (GET typically returns `405`; POST should succeed — verify against your FastMCP version):
 
@@ -233,14 +235,67 @@ Use these quick checks after deployment:
     curl -i http://HOST:PORT/mcp
     ```
 
-- **SSE (backwards compatible)**
-  - Ensure `MCP_TRANSPORT=sse` is set.
+- **SSE**
+  - Ensure `MCP_MODE=remote` is set.
   - The SSE endpoint accepts GET at `/sse` for subscriptions.
   - Manual probe (expects an SSE stream):
 
     ```bash
     curl -i http://HOST:PORT/sse
     ```
+
+## Local integration test plan (stdio + remote)
+
+These checks validate that the `list_items` tool works in stdio, Streamable HTTP, and SSE modes using a locally built container. They assume a reachable openHAB instance (use `make dev-env` for a local one).
+
+1. Build the image:
+
+   ```bash
+   make docker-build
+   ```
+
+2. Start openHAB (optional if you already have one):
+
+   ```bash
+   make dev-env
+   ```
+
+3. **stdio**: run the server locally and call `list_items` via stdio:
+
+   ```bash
+   OPENHAB_URL=http://localhost:18080 \
+   OPENHAB_API_TOKEN=your-api-token \
+   uv run python scripts/mcp_client_stdio_list_items.py
+   ```
+
+4. **remote**: run the container in remote mode:
+
+   ```bash
+   podman run -d --rm -p 8081:8000 \
+     -e MCP_MODE=remote \
+     -e OPENHAB_URL=http://localhost:18080 \
+     -e OPENHAB_API_TOKEN=your-api-token \
+     --name openhab-mcp \
+     openhab-mcp
+   ```
+
+5. **Streamable HTTP**: call `list_items` via `/mcp`:
+
+   ```bash
+   uv run python scripts/mcp_client_streamable_list_items.py
+   ```
+
+6. **SSE**: call `list_items` via `/sse`:
+
+   ```bash
+   uv run python scripts/mcp_client_sse_list_items.py
+   ```
+
+7. Stop the container:
+
+   ```bash
+   podman stop openhab-mcp
+   ```
 
 ## MCP Tools
 
