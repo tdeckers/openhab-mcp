@@ -23,7 +23,6 @@ services:
       - OPENHAB_USERNAME=${OPENHAB_USERNAME:-}
       - OPENHAB_PASSWORD=${OPENHAB_PASSWORD:-}
       - MCP_TRANSPORT=http
-      - PORT=8081
     depends_on:
       openhab:
         condition: service_healthy

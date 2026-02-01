@@ -215,10 +215,10 @@ If configured correctly, Claude/Cline will use the MCP server to fetch and displ
 
 ### Transport Endpoints (Streamable HTTP vs SSE)
 
-- **Streamable HTTP (preferred):** set `MCP_TRANSPORT=http` and connect to `http://HOST:PORT/mcp`
+- **Streamable HTTP (preferred):** set `MCP_TRANSPORT=http` (normalized internally to `streamable-http`) and connect to `http://HOST:PORT/mcp`
 - **SSE (backwards compatible):** set `MCP_TRANSPORT=sse` and connect to `http://HOST:PORT/sse`
 
-If a Streamable HTTP client POSTs to `/sse`, the server returns `405 Method Not Allowed` because `/sse` only accepts SSE GET/subscribe requests.
+If a Streamable HTTP client POSTs to `/sse`, the server should return `405 Method Not Allowed` because `/sse` only accepts SSE GET/subscribe requests (verify against your FastMCP version).
 
 ## Transport Smoke Test
 
@@ -227,7 +227,7 @@ Use these quick checks after deployment:
 - **Streamable HTTP (preferred)**
   - Ensure `MCP_TRANSPORT=http` is set.
   - Initialize with a POST to `/mcp` (client libraries handle this automatically).
-  - Manual probe (expects `405` for GET; POST should succeed):
+  - Manual probe (GET typically returns `405`; POST should succeed — verify against your FastMCP version):
 
     ```bash
     curl -i http://HOST:PORT/mcp
