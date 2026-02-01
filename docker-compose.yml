@@ -22,7 +22,7 @@ services:
       - OPENHAB_API_TOKEN=${OPENHAB_API_TOKEN:-}
       - OPENHAB_USERNAME=${OPENHAB_USERNAME:-}
       - OPENHAB_PASSWORD=${OPENHAB_PASSWORD:-}
-      - PORT=8081
+      - MCP_TRANSPORT=http
     depends_on:
       openhab:
         condition: service_healthy

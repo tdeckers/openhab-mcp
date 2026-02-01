@@ -14,13 +14,8 @@ from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
-# Configure logging to suppress INFO messages
-logging.basicConfig(level=logging.WARNING)
-
 # Import the MCP server implementation
 from mcp.server import FastMCP
-from mcp.server.stdio import stdio_server
-from mcp.types import INVALID_REQUEST, JSONRPCError
 
 # Import our modules
 from models import (
@@ -37,6 +32,9 @@ from models import (
 )
 from openhab_client import OpenHABClient
 
+# Configure logging to suppress INFO messages
+logging.basicConfig(level=logging.WARNING)
+
 # Load environment variables from .env file
 env_file = Path(".env")
 if env_file.exists():
@@ -48,15 +46,17 @@ if MCP_TRANSPORT_ENV is None:
     MCP_TRANSPORT = "stdio"
 else:
     MCP_TRANSPORT = MCP_TRANSPORT_ENV.strip().lower()
-    if MCP_TRANSPORT not in ("stdio", "sse"):
+    if MCP_TRANSPORT in ("http", "streamable-http", "streamable_http"):
+        MCP_TRANSPORT = "streamable-http"
+    elif MCP_TRANSPORT not in ("stdio", "sse"):
         logging.warning(
-            "Invalid MCP_TRANSPORT value '%s'. Expected 'stdio' or 'sse'. "
-            "Falling back to 'stdio'.",
+            "Invalid MCP_TRANSPORT value '%s'. Expected 'stdio', 'sse', or "
+            "'http'/'streamable-http'. Falling back to 'stdio'.",
             MCP_TRANSPORT_ENV,
         )
         MCP_TRANSPORT = "stdio"
 
-if MCP_TRANSPORT == "sse":
+if MCP_TRANSPORT in ("sse", "streamable-http"):
     mcp = FastMCP("OpenHAB MCP Server", host="0.0.0.0")
 else:
     mcp = FastMCP("OpenHAB MCP Server")
@@ -334,7 +334,10 @@ def run_rule_now(rule_uid: str) -> bool:
 def list_links(
     channel_uid: Optional[str] = None, item_name: Optional[str] = None
 ) -> List[EnrichedItemChannelLinkDTO]:
-    """List all openHAB item-channel links, optionally filtered by channel UID or item name"""
+    """
+    List all openHAB item-channel links, optionally filtered by channel UID
+    or item name.
+    """
     links = openhab_client.list_links(channel_uid, item_name)
     return links
 
@@ -383,6 +386,8 @@ def main():
     """Main entry point for the OpenHAB MCP server."""
     if MCP_TRANSPORT == "sse":
         mcp.run(transport="sse")
+    elif MCP_TRANSPORT == "streamable-http":
+        mcp.run(transport="streamable-http")
     else:
         mcp.run()
 

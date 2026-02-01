@@ -43,7 +43,7 @@ When connected to Claude or Cline in VSCode, you can use natural language to con
 
 The official image is published to the GitHub Container Registry (`ghcr.io/tdeckers/openhab-mcp`). Pulling this image is the fastest way to get the MCP server running.
 
-By default the server uses stdio for MCP. To expose an SSE endpoint over HTTP, set `MCP_TRANSPORT=sse` and map the container port. The container examples below use SSE; for stdio, omit `MCP_TRANSPORT` and the port mapping.
+By default the server uses stdio for MCP. For remote HTTP clients, Streamable HTTP is preferred (`MCP_TRANSPORT=http`) and exposes `http://HOST:PORT/mcp`. SSE is still supported for backwards compatibility at `http://HOST:PORT/sse` (`MCP_TRANSPORT=sse`). The container examples below use Streamable HTTP; for stdio, omit `MCP_TRANSPORT` and the port mapping. Streamable HTTP supports session headers like `Mcp-Session-Id` for stateful clients.
 
 1. (Optional for private registries) Authenticate with GHCR:
 
@@ -56,7 +56,7 @@ By default the server uses stdio for MCP. To expose an SSE endpoint over HTTP, s
 
    ```bash
    podman run -d --rm -p 8081:8000 \
-     -e MCP_TRANSPORT=sse \
+     -e MCP_TRANSPORT=http \
      -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
@@ -65,9 +65,10 @@ By default the server uses stdio for MCP. To expose an SSE endpoint over HTTP, s
    ```
 
    Using Docker instead?
+
    ```bash
    docker run -d --rm -p 8081:8000 \
-     -e MCP_TRANSPORT=sse \
+     -e MCP_TRANSPORT=http \
      -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
@@ -81,7 +82,7 @@ By default the server uses stdio for MCP. To expose an SSE endpoint over HTTP, s
    # or: docker stop openhab-mcp
    ```
 
-When running with `MCP_TRANSPORT=sse`, the container listens on port 8000 internally, but the examples map it to port 8081 on the host to avoid conflicts with an existing OpenHAB installation.
+When running with `MCP_TRANSPORT=http` (Streamable HTTP) or `MCP_TRANSPORT=sse`, the container listens on port 8000 internally, but the examples map it to port 8081 on the host to avoid conflicts with an existing OpenHAB installation. Streamable HTTP clients connect to `http://HOST:PORT/mcp`, while SSE clients connect to `http://HOST:PORT/sse`.
 
 ## Optional: Build and run a custom image
 
@@ -100,7 +101,7 @@ If you need to modify the code, build and tag the image locally instead:
    make docker-run
    # or directly:
    podman run -d --rm -p 8081:8000 \
-     -e MCP_TRANSPORT=sse \
+     -e MCP_TRANSPORT=http \
      -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
@@ -148,7 +149,7 @@ Save the following as `claude_desktop_config.json` in your Claude Desktop config
         "-p",
         "8081:8000",
         "-e",
-        "MCP_TRANSPORT=sse",
+        "MCP_TRANSPORT=http",
         "-e",
         "OPENHAB_URL=http://your-openhab-host:8080",
         "-e",
@@ -184,7 +185,7 @@ Save the following as `mcp.json` in your Cline configuration directory:
         "-p",
         "8081:8000",
         "-e",
-        "MCP_TRANSPORT=sse",
+        "MCP_TRANSPORT=http",
         "-e",
         "OPENHAB_URL=http://your-openhab-host:8080",
         "-e",
@@ -212,11 +213,41 @@ Can you list all the items in my OpenHAB system?
 
 If configured correctly, Claude/Cline will use the MCP server to fetch and display your OpenHAB items.
 
+### Transport Endpoints (Streamable HTTP vs SSE)
+
+- **Streamable HTTP (preferred):** set `MCP_TRANSPORT=http` (normalized internally to `streamable-http`) and connect to `http://HOST:PORT/mcp`
+- **SSE (backwards compatible):** set `MCP_TRANSPORT=sse` and connect to `http://HOST:PORT/sse`
+
+If a Streamable HTTP client POSTs to `/sse`, the server should return `405 Method Not Allowed` because `/sse` only accepts SSE GET/subscribe requests (verify against your FastMCP version).
+
+## Transport Smoke Test
+
+Use these quick checks after deployment:
+
+- **Streamable HTTP (preferred)**
+  - Ensure `MCP_TRANSPORT=http` is set.
+  - Initialize with a POST to `/mcp` (client libraries handle this automatically).
+  - Manual probe (GET typically returns `405`; POST should succeed — verify against your FastMCP version):
+
+    ```bash
+    curl -i http://HOST:PORT/mcp
+    ```
+
+- **SSE (backwards compatible)**
+  - Ensure `MCP_TRANSPORT=sse` is set.
+  - The SSE endpoint accepts GET at `/sse` for subscriptions.
+  - Manual probe (expects an SSE stream):
+
+    ```bash
+    curl -i http://HOST:PORT/sse
+    ```
+
 ## MCP Tools
 
 The server provides the following tools:
 
 ### Item Management
+
 1. `list_items` - Paginated list of openHAB items with optional tag, type, name, and label filters
 2. `get_item` - Get a specific openHAB item by name
 3. `create_item` - Create a new openHAB item
@@ -225,45 +256,46 @@ The server provides the following tools:
 6. `update_item_state` - Update just the state of an openHAB item
 
 ### Thing Management
-7. `list_things` - Paginated list of openHAB things with optional UID and label filters
-8. `get_thing` - Get a specific openHAB thing by UID
-9. `create_thing` - Create a new openHAB thing
-10. `update_thing` - Update an existing openHAB thing
-11. `delete_thing` - Delete an openHAB thing
-12. `update_thing_config` - Update an openHAB thing's configuration
-13. `get_thing_config_status` - Get openHAB thing configuration status
-14. `set_thing_enabled` - Set the enabled status of an openHAB thing
-15. `get_thing_status` - Get openHAB thing status
-16. `get_thing_firmware_status` - Get openHAB thing firmware status
-17. `get_available_firmwares` - Get available firmwares for an openHAB thing
+
+1. `list_things` - Paginated list of openHAB things with optional UID and label filters
+2. `get_thing` - Get a specific openHAB thing by UID
+3. `create_thing` - Create a new openHAB thing
+4. `update_thing` - Update an existing openHAB thing
+5. `delete_thing` - Delete an openHAB thing
+6. `update_thing_config` - Update an openHAB thing's configuration
+7. `get_thing_config_status` - Get openHAB thing configuration status
+8. `set_thing_enabled` - Set the enabled status of an openHAB thing
+9. `get_thing_status` - Get openHAB thing status
+10. `get_thing_firmware_status` - Get openHAB thing firmware status
+11. `get_available_firmwares` - Get available firmwares for an openHAB thing
 
 ### Rule Management
 
-18. `list_rules` - List all openHAB rules, optionally filtered by tag
-19. `get_rule` - Get a specific openHAB rule by UID
-20. `create_rule` - Create a new openHAB rule
-21. `update_rule` - Update an existing openHAB rule with partial updates
-22. `update_rule_script_action` - Update a script action in an openHAB rule
-23. `delete_rule` - Delete an openHAB rule
-24. `run_rule_now` - Run an openHAB rule immediately
+1. `list_rules` - List all openHAB rules, optionally filtered by tag
+2. `get_rule` - Get a specific openHAB rule by UID
+3. `create_rule` - Create a new openHAB rule
+4. `update_rule` - Update an existing openHAB rule with partial updates
+5. `update_rule_script_action` - Update a script action in an openHAB rule
+6. `delete_rule` - Delete an openHAB rule
+7. `run_rule_now` - Run an openHAB rule immediately
 
 ### Script Management
 
-25. `list_scripts` - List all openHAB scripts (rules with tag 'Script' and no trigger)
-26. `get_script` - Get a specific openHAB script by ID
-27. `create_script` - Create a new openHAB script
-28. `update_script` - Update an existing openHAB script
-29. `delete_script` - Delete an openHAB script
+1. `list_scripts` - List all openHAB scripts (rules with tag 'Script' and no trigger)
+2. `get_script` - Get a specific openHAB script by ID
+3. `create_script` - Create a new openHAB script
+4. `update_script` - Update an existing openHAB script
+5. `delete_script` - Delete an openHAB script
 
 ### Link Management
 
-30. `list_links` - List all openHAB item-channel links, optionally filtered by channel UID or item name
-31. `get_link` - Get a specific openHAB item-channel link
-32. `create_or_update_link` - Create or update an openHAB item-channel link
-33. `delete_link` - Delete a specific openHAB item-channel link
-34. `get_orphan_links` - Get orphaned openHAB item-channel links (links to non-existent channels)
-35. `purge_orphan_links` - Remove all orphaned openHAB item-channel links
-36. `delete_all_links_for_object` - Delete all openHAB links for a specific item or thing
+1. `list_links` - List all openHAB item-channel links, optionally filtered by channel UID or item name
+2. `get_link` - Get a specific openHAB item-channel link
+3. `create_or_update_link` - Create or update an openHAB item-channel link
+4. `delete_link` - Delete a specific openHAB item-channel link
+5. `get_orphan_links` - Get orphaned openHAB item-channel links (links to non-existent channels)
+6. `purge_orphan_links` - Remove all orphaned openHAB item-channel links
+7. `delete_all_links_for_object` - Delete all openHAB links for a specific item or thing
 
 ## MCP Resources
 
