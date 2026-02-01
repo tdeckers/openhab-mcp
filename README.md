@@ -43,6 +43,8 @@ When connected to Claude or Cline in VSCode, you can use natural language to con
 
 The official image is published to the GitHub Container Registry (`ghcr.io/tdeckers/openhab-mcp`). Pulling this image is the fastest way to get the MCP server running.
 
+By default the server uses stdio for MCP. To expose an SSE endpoint over HTTP, set `MCP_TRANSPORT=sse` and map the container port. The container examples below use SSE; for stdio, omit `MCP_TRANSPORT` and the port mapping.
+
 1. (Optional for private registries) Authenticate with GHCR:
 
    ```bash
@@ -53,22 +55,24 @@ The official image is published to the GitHub Container Registry (`ghcr.io/tdeck
 2. Run the container with Podman (add `-e OPENHAB_USERNAME=...` and `-e OPENHAB_PASSWORD=...` if your OpenHAB instance requires basic authentication):
 
    ```bash
-   podman run -d --rm -p 8081:8080 \
+   podman run -d --rm -p 8081:8000 \
+     -e MCP_TRANSPORT=sse \
      -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
      ghcr.io/tdeckers/openhab-mcp:latest
 
-  ```
+   ```
 
    Using Docker instead?
    ```bash
-   docker run -d --rm -p 8081:8080 \
+   docker run -d --rm -p 8081:8000 \
+     -e MCP_TRANSPORT=sse \
      -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
      ghcr.io/tdeckers/openhab-mcp:latest
-  ```
+   ```
 
 3. Stop the container when you are done:
 
@@ -77,7 +81,7 @@ The official image is published to the GitHub Container Registry (`ghcr.io/tdeck
    # or: docker stop openhab-mcp
    ```
 
-The container exposes port 8080 internally, but the examples map it to port 8081 on the host to avoid conflicts with an existing OpenHAB installation.
+When running with `MCP_TRANSPORT=sse`, the container listens on port 8000 internally, but the examples map it to port 8081 on the host to avoid conflicts with an existing OpenHAB installation.
 
 ## Optional: Build and run a custom image
 
@@ -95,7 +99,8 @@ If you need to modify the code, build and tag the image locally instead:
    ```bash
    make docker-run
    # or directly:
-   podman run -d --rm -p 8081:8080 \
+   podman run -d --rm -p 8081:8000 \
+     -e MCP_TRANSPORT=sse \
      -e OPENHAB_URL=http://your-openhab-host:8080 \
      -e OPENHAB_API_TOKEN=your-api-token \
      --name openhab-mcp \
@@ -141,7 +146,9 @@ Save the following as `claude_desktop_config.json` in your Claude Desktop config
         "run",
         "-d",
         "-p",
-        "8081:8080",
+        "8081:8000",
+        "-e",
+        "MCP_TRANSPORT=sse",
         "-e",
         "OPENHAB_URL=http://your-openhab-host:8080",
         "-e",
@@ -175,7 +182,9 @@ Save the following as `mcp.json` in your Cline configuration directory:
         "run",
         "-d",
         "-p",
-        "8081:8080",
+        "8081:8000",
+        "-e",
+        "MCP_TRANSPORT=sse",
         "-e",
         "OPENHAB_URL=http://your-openhab-host:8080",
         "-e",
