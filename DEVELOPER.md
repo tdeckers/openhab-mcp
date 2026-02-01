@@ -9,6 +9,8 @@ For development, the recommended approach is to use Podman:
 A docker-compose file is provided for running both OpenHAB and the MCP server in containers using podman-compose.
 Run the following command to start the containers:
 
+Streamable HTTP is the preferred transport for HTTP clients. Use `MCP_TRANSPORT=http` and connect to `http://HOST:PORT/mcp`. SSE remains available for backwards compatibility at `http://HOST:PORT/sse` with `MCP_TRANSPORT=sse`.
+
 ```bash
 # Using podman-compose directly
 podman-compose up -d
@@ -17,7 +19,7 @@ podman-compose up -d
 make dev-env
 ```
 
-The OpenAPI spec for OpenHAB is available at: http://localhost:18080/rest/spec
+The OpenAPI spec for OpenHAB is available at: <http://localhost:18080/rest/spec>
 
 The MCP server will be available at port 8081 and will automatically connect to the OpenHAB instance.
 
