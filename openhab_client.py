@@ -10,6 +10,7 @@ from models import (
     FirmwareStatusDTO,
     Item,
     ItemChannelLinkDTO,
+    ItemMetadata,
     PaginatedItems,
     PaginatedThings,
     PaginationInfo,
@@ -104,13 +105,26 @@ class OpenHABClient:
 
         return PaginatedItems(items=paginated_items, pagination=pagination)
 
-    def get_item(self, item_name: str) -> Optional[Item]:
-        """Get a specific item by name"""
+    def get_item(
+        self, item_name: str, metadata: Optional[str] = None
+    ) -> Optional[Item]:
+        """Get a specific item by name.
+
+        When ``metadata`` is provided it is passed to openHAB as a namespace
+        selector (regex or comma-separated list, e.g. ``"semantics,homekit"``
+        or ``".*"``) so the returned item includes metadata entries.
+        """
         if item_name is None:
             return None
 
+        params = {}
+        if metadata is not None:
+            params["metadata"] = metadata
+
         try:
-            response = self.session.get(f"{self.base_url}/rest/items/{item_name}")
+            response = self.session.get(
+                f"{self.base_url}/rest/items/{item_name}", params=params
+            )
             response.raise_for_status()
             return Item(**response.json())
         except requests.exceptions.HTTPError as e:
@@ -280,6 +294,85 @@ class OpenHABClient:
 
         # Get the updated item
         return self.get_item(item_name)
+
+    def get_item_metadata(
+        self, item_name: str, namespace: Optional[str] = None
+    ) -> Dict[str, ItemMetadata]:
+        """Get metadata for an item.
+
+        ``namespace`` is a namespace selector passed to openHAB (a regex or a
+        comma-separated list). When omitted, all namespaces are returned.
+        """
+        if not item_name:
+            raise ValueError("Item name is required")
+
+        selector = namespace if namespace is not None else ".*"
+        item = self.get_item(item_name, metadata=selector)
+        if item is None:
+            raise ValueError(f"Item with name '{item_name}' not found")
+
+        return item.metadata
+
+    def set_item_metadata(
+        self,
+        item_name: str,
+        namespace: str,
+        value: str,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> ItemMetadata:
+        """Add or update item metadata in a namespace."""
+        if not item_name:
+            raise ValueError("Item name is required")
+        if not namespace:
+            raise ValueError("Namespace is required")
+
+        payload: Dict[str, Any] = {"value": value, "config": config or {}}
+
+        response = self.session.put(
+            f"{self.base_url}/rest/items/{item_name}/metadata/{quote(namespace, safe='')}",
+            json=payload,
+        )
+
+        if response.status_code == 404:
+            raise ValueError(f"Item with name '{item_name}' not found")
+
+        response.raise_for_status()
+
+        # openHAB returns 201 Created with an empty body on new namespaces,
+        # and 200 OK with the updated entry on updates. Echo the input back
+        # when there is no body.
+        if response.status_code == 201 or not response.content:
+            return ItemMetadata(**payload)
+        return ItemMetadata(**response.json())
+
+    def delete_item_metadata(self, item_name: str, namespace: str) -> bool:
+        """Remove an item's metadata from a namespace."""
+        if not item_name:
+            raise ValueError("Item name is required")
+        if not namespace:
+            raise ValueError("Namespace is required")
+
+        response = self.session.delete(
+            f"{self.base_url}/rest/items/{item_name}/metadata/{quote(namespace, safe='')}"
+        )
+
+        if response.status_code == 404:
+            raise ValueError(
+                f"Metadata namespace '{namespace}' for item '{item_name}' not found"
+            )
+
+        response.raise_for_status()
+        return True
+
+    def list_metadata_namespaces(self, item_name: str) -> List[str]:
+        """List metadata namespaces defined on an item."""
+        if not item_name:
+            raise ValueError("Item name is required")
+
+        item = self.get_item(item_name, metadata=".*")
+        if item is None:
+            raise ValueError(f"Item with name '{item_name}' not found")
+        return sorted(item.metadata.keys())
 
     def list_things(
         self,

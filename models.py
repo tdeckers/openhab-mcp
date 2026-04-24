@@ -3,6 +3,13 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+class ItemMetadata(BaseModel):
+    """Metadata entry attached to an item under a namespace."""
+
+    value: str = ""
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+
 class Item(BaseModel):
     type: str = "String"
     name: str
@@ -10,6 +17,7 @@ class Item(BaseModel):
     label: Optional[str] = None
     tags: List[str] = []
     groupNames: List[str] = []
+    metadata: Dict[str, ItemMetadata] = Field(default_factory=dict)
 
 
 class ThingStatusInfo(BaseModel):

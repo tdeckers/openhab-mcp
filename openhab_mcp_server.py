@@ -29,6 +29,7 @@ from models import (
     FirmwareStatusDTO,
     Item,
     ItemChannelLinkDTO,
+    ItemMetadata,
     Rule,
     Thing,
     ThingDTO,
@@ -131,9 +132,14 @@ def list_items(
 
 
 @mcp.tool()
-def get_item(item_name: str) -> Optional[Item]:
-    """Get a specific openHAB item by name"""
-    item = openhab_client.get_item(item_name)
+def get_item(item_name: str, metadata: Optional[str] = None) -> Optional[Item]:
+    """Get a specific openHAB item by name.
+
+    When ``metadata`` is provided (a namespace selector such as ``"semantics"``,
+    a comma-separated list, or ``".*"`` for all) the returned item includes its
+    metadata entries.
+    """
+    item = openhab_client.get_item(item_name, metadata=metadata)
     return item
 
 
@@ -162,6 +168,42 @@ def update_item_state(item_name: str, state: str) -> Item:
     """Update the state of an openHAB item"""
     updated_item = openhab_client.update_item_state(item_name, state)
     return updated_item
+
+
+@mcp.tool()
+def get_item_metadata(
+    item_name: str, namespace: Optional[str] = None
+) -> Dict[str, ItemMetadata]:
+    """Get metadata for an openHAB item.
+
+    ``namespace`` is a namespace selector (e.g. ``"semantics"``, a
+    comma-separated list, or a regex). If omitted, all namespaces are
+    returned.
+    """
+    return openhab_client.get_item_metadata(item_name, namespace=namespace)
+
+
+@mcp.tool()
+def set_item_metadata(
+    item_name: str,
+    namespace: str,
+    value: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> ItemMetadata:
+    """Add or update metadata for an openHAB item in a given namespace."""
+    return openhab_client.set_item_metadata(item_name, namespace, value, config)
+
+
+@mcp.tool()
+def delete_item_metadata(item_name: str, namespace: str) -> bool:
+    """Delete metadata for an openHAB item in a given namespace."""
+    return openhab_client.delete_item_metadata(item_name, namespace)
+
+
+@mcp.tool()
+def list_metadata_namespaces(item_name: str) -> List[str]:
+    """List metadata namespaces defined on an openHAB item."""
+    return openhab_client.list_metadata_namespaces(item_name)
 
 
 @mcp.tool()
