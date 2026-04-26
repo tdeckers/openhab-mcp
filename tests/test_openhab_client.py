@@ -64,12 +64,16 @@ def test_create_item_excludes_metadata_from_payload():
     }
 
 
-def test_get_item_metadata_fetches_all_namespaces_from_metadata_endpoint():
+def test_get_item_metadata_fetches_all_namespaces_from_item_endpoint():
     session = RecordingSession()
     session.next_get = FakeResponse(
         {
-            "semantics": {"value": "Point", "config": {"isPointOf": "Kitchen"}},
-            "homekit": {"value": "Lighting", "config": {}},
+            "type": "String",
+            "name": "TestItem",
+            "metadata": {
+                "semantics": {"value": "Point", "config": {"isPointOf": "Kitchen"}},
+                "homekit": {"value": "Lighting", "config": {}},
+            },
         }
     )
     client = _client_with_session(session)
@@ -77,7 +81,11 @@ def test_get_item_metadata_fetches_all_namespaces_from_metadata_endpoint():
     metadata = client.get_item_metadata("TestItem")
 
     assert session.requests == [
-        ("GET", "http://openhab.example/rest/items/TestItem/metadata", {})
+        (
+            "GET",
+            "http://openhab.example/rest/items/TestItem",
+            {"params": {"metadata": ".*"}},
+        )
     ]
     assert metadata["semantics"] == ItemMetadata(
         value="Point", config={"isPointOf": "Kitchen"}
@@ -85,9 +93,15 @@ def test_get_item_metadata_fetches_all_namespaces_from_metadata_endpoint():
     assert metadata["homekit"] == ItemMetadata(value="Lighting", config={})
 
 
-def test_get_item_metadata_fetches_specific_namespace_from_metadata_endpoint():
+def test_get_item_metadata_fetches_specific_namespace_from_item_endpoint():
     session = RecordingSession()
-    session.next_get = FakeResponse({"value": "Point", "config": {"relatesTo": "x"}})
+    session.next_get = FakeResponse(
+        {
+            "type": "String",
+            "name": "TestItem",
+            "metadata": {"semantics": {"value": "Point", "config": {"relatesTo": "x"}}},
+        }
+    )
     client = _client_with_session(session)
 
     metadata = client.get_item_metadata("TestItem", namespace="semantics")
@@ -95,10 +109,27 @@ def test_get_item_metadata_fetches_specific_namespace_from_metadata_endpoint():
     assert session.requests == [
         (
             "GET",
-            "http://openhab.example/rest/items/TestItem/metadata/semantics",
-            {},
+            "http://openhab.example/rest/items/TestItem",
+            {"params": {"metadata": "semantics"}},
         )
     ]
     assert metadata == {
         "semantics": ItemMetadata(value="Point", config={"relatesTo": "x"})
     }
+
+
+def test_list_metadata_namespaces_uses_namespaces_endpoint():
+    session = RecordingSession()
+    session.next_get = FakeResponse(["homekit", "semantics"])
+    client = _client_with_session(session)
+
+    namespaces = client.list_metadata_namespaces("TestItem")
+
+    assert session.requests == [
+        (
+            "GET",
+            "http://openhab.example/rest/items/TestItem/metadata/namespaces",
+            {},
+        )
+    ]
+    assert namespaces == ["homekit", "semantics"]

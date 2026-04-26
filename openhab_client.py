@@ -310,31 +310,28 @@ class OpenHABClient:
         if not item_name:
             raise ValueError("Item name is required")
 
-        if namespace is None:
-            response = self.session.get(
-                f"{self.base_url}/rest/items/{item_name}/metadata"
-            )
-            if response.status_code == 404:
-                raise ValueError(f"Item with name '{item_name}' not found")
-
-            response.raise_for_status()
-            return {
-                namespace: ItemMetadata(**metadata)
-                for namespace, metadata in response.json().items()
-            }
-
-        metadata_url = (
-            f"{self.base_url}/rest/items/{item_name}/metadata/"
-            f"{quote(namespace, safe='')}"
+        metadata_selector = namespace if namespace is not None else ".*"
+        response = self.session.get(
+            f"{self.base_url}/rest/items/{item_name}",
+            params={"metadata": metadata_selector},
         )
-        response = self.session.get(metadata_url)
         if response.status_code == 404:
+            raise ValueError(f"Item with name '{item_name}' not found")
+
+        response.raise_for_status()
+        metadata = {
+            metadata_namespace: ItemMetadata(**metadata_entry)
+            for metadata_namespace, metadata_entry in response.json()
+            .get("metadata", {})
+            .items()
+        }
+
+        if namespace is not None and namespace not in metadata:
             raise ValueError(
                 f"Metadata namespace '{namespace}' for item '{item_name}' not found"
             )
 
-        response.raise_for_status()
-        return {namespace: ItemMetadata(**response.json())}
+        return metadata
 
     def set_item_metadata(
         self,
@@ -395,7 +392,13 @@ class OpenHABClient:
         if not item_name:
             raise ValueError("Item name is required")
 
-        return sorted(self.get_item_metadata(item_name).keys())
+        metadata_url = f"{self.base_url}/rest/items/{item_name}/metadata/namespaces"
+        response = self.session.get(metadata_url)
+        if response.status_code == 404:
+            raise ValueError(f"Item with name '{item_name}' not found")
+
+        response.raise_for_status()
+        return sorted(response.json())
 
     def list_things(
         self,
