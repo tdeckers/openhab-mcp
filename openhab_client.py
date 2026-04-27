@@ -10,6 +10,7 @@ from models import (
     FirmwareStatusDTO,
     Item,
     ItemChannelLinkDTO,
+    ItemMetadata,
     PaginatedItems,
     PaginatedThings,
     PaginationInfo,
@@ -88,7 +89,9 @@ class OpenHABClient:
         )
 
         total_elements = len(filtered_items)
-        total_pages = (total_elements + page_size - 1) // page_size if page_size > 0 else 0
+        total_pages = (
+            (total_elements + page_size - 1) // page_size if page_size > 0 else 0
+        )
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
         paginated_items = filtered_items[start_idx:end_idx]
@@ -104,13 +107,26 @@ class OpenHABClient:
 
         return PaginatedItems(items=paginated_items, pagination=pagination)
 
-    def get_item(self, item_name: str) -> Optional[Item]:
-        """Get a specific item by name"""
+    def get_item(
+        self, item_name: str, metadata: Optional[str] = None
+    ) -> Optional[Item]:
+        """Get a specific item by name.
+
+        When ``metadata`` is provided it is passed to openHAB as a namespace
+        selector (regex or comma-separated list, e.g. ``"semantics,homekit"``
+        or ``".*"``) so the returned item includes metadata entries.
+        """
         if item_name is None:
             return None
 
+        params = {}
+        if metadata is not None:
+            params["metadata"] = metadata
+
         try:
-            response = self.session.get(f"{self.base_url}/rest/items/{item_name}")
+            response = self.session.get(
+                f"{self.base_url}/rest/items/{item_name}", params=params
+            )
             response.raise_for_status()
             return Item(**response.json())
         except requests.exceptions.HTTPError as e:
@@ -123,7 +139,10 @@ class OpenHABClient:
         if not item.name:
             raise ValueError("Item must have a name")
 
-        payload = item.dict()
+        if hasattr(item, "model_dump"):
+            payload = item.model_dump(exclude={"metadata"})
+        else:
+            payload = item.dict(exclude={"metadata"})
 
         response = self.session.put(
             f"{self.base_url}/rest/items/{item.name}", json=payload
@@ -171,7 +190,7 @@ class OpenHABClient:
     def list_links(
         self, channel_uid: Optional[str] = None, item_name: Optional[str] = None
     ) -> List[EnrichedItemChannelLinkDTO]:
-        """List all item-channel links, optionally filtered by channel UID or item name"""
+        """List item-channel links, optionally filtered by channel UID or item name."""
         params = {}
         if channel_uid:
             params["channelUID"] = channel_uid
@@ -281,6 +300,106 @@ class OpenHABClient:
         # Get the updated item
         return self.get_item(item_name)
 
+    def get_item_metadata(
+        self, item_name: str, namespace: Optional[str] = None
+    ) -> Dict[str, ItemMetadata]:
+        """Get metadata for an item.
+
+        When ``namespace`` is omitted, all namespaces are returned.
+        """
+        if not item_name:
+            raise ValueError("Item name is required")
+
+        metadata_selector = namespace if namespace is not None else ".*"
+        response = self.session.get(
+            f"{self.base_url}/rest/items/{item_name}",
+            params={"metadata": metadata_selector},
+        )
+        if response.status_code == 404:
+            raise ValueError(f"Item with name '{item_name}' not found")
+
+        response.raise_for_status()
+        metadata = {
+            metadata_namespace: ItemMetadata(**metadata_entry)
+            for metadata_namespace, metadata_entry in response.json()
+            .get("metadata", {})
+            .items()
+        }
+
+        if namespace is not None and namespace not in metadata:
+            raise ValueError(
+                f"Metadata namespace '{namespace}' for item '{item_name}' not found"
+            )
+
+        return metadata
+
+    def set_item_metadata(
+        self,
+        item_name: str,
+        namespace: str,
+        value: str,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> ItemMetadata:
+        """Add or update item metadata in a namespace."""
+        if not item_name:
+            raise ValueError("Item name is required")
+        if not namespace:
+            raise ValueError("Namespace is required")
+
+        payload: Dict[str, Any] = {"value": value, "config": config or {}}
+
+        metadata_url = (
+            f"{self.base_url}/rest/items/{item_name}/metadata/"
+            f"{quote(namespace, safe='')}"
+        )
+        response = self.session.put(metadata_url, json=payload)
+
+        if response.status_code == 404:
+            raise ValueError(f"Item with name '{item_name}' not found")
+
+        response.raise_for_status()
+
+        # openHAB returns 201 Created with an empty body on new namespaces,
+        # and 200 OK with the updated entry on updates. Echo the input back
+        # when there is no body.
+        if response.status_code == 201 or not response.content:
+            return ItemMetadata(**payload)
+        return ItemMetadata(**response.json())
+
+    def delete_item_metadata(self, item_name: str, namespace: str) -> bool:
+        """Remove an item's metadata from a namespace."""
+        if not item_name:
+            raise ValueError("Item name is required")
+        if not namespace:
+            raise ValueError("Namespace is required")
+
+        metadata_url = (
+            f"{self.base_url}/rest/items/{item_name}/metadata/"
+            f"{quote(namespace, safe='')}"
+        )
+        response = self.session.delete(metadata_url)
+
+        if response.status_code == 404:
+            raise ValueError(
+                f"Metadata namespace '{namespace}' for item '{item_name}' not found"
+            )
+
+        response.raise_for_status()
+        return True
+
+    def list_metadata_namespaces(self, item_name: str) -> List[str]:
+        """List metadata namespaces defined on an item."""
+        if not item_name:
+            raise ValueError("Item name is required")
+
+        metadata_url = f"{self.base_url}/rest/items/{item_name}/metadata/namespaces"
+        response = self.session.get(metadata_url)
+        if response.status_code == 404:
+            raise ValueError(f"Item with name '{item_name}' not found")
+
+        response.raise_for_status()
+        return sorted(response.json())
+
     def list_things(
         self,
         page: int = 1,
@@ -326,7 +445,9 @@ class OpenHABClient:
         )
 
         total_elements = len(filtered_things)
-        total_pages = (total_elements + page_size - 1) // page_size if page_size > 0 else 0
+        total_pages = (
+            (total_elements + page_size - 1) // page_size if page_size > 0 else 0
+        )
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
         paginated_things = filtered_things[start_idx:end_idx]
@@ -480,9 +601,11 @@ class OpenHABClient:
             raise ValueError("Thing UID is required")
 
         try:
-            response = self.session.get(
-                f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}/firmware/status"
+            firmware_status_url = (
+                f"{self.base_url}/rest/things/{quote(thing_uid, safe='')}"
+                "/firmware/status"
             )
+            response = self.session.get(firmware_status_url)
             if response.status_code == 204:
                 return None  # No firmware status provided
             response.raise_for_status()
@@ -617,18 +740,18 @@ class OpenHABClient:
         return True
 
     def list_scripts(self) -> List[Rule]:
-        """List all scripts. A script is a rule without a trigger and tag of 'Script'"""
+        """List scripts, which are rules without triggers and tagged 'Script'."""
         return self.list_rules(filter_tag="Script")
 
     def get_script(self, script_id: str) -> Optional[Rule]:
-        """Get a specific script by ID. A script is a rule without a trigger and tag of 'Script'"""
+        """Get a script by ID."""
         if script_id is None:
             return None
 
         return self.get_rule(script_id)
 
     def create_script(self, script_id: str, script_type: str, content: str) -> Rule:
-        """Create a new script.  A script is a rule without a trigger and tag of 'Script'"""
+        """Create a script rule."""
         if not script_id:
             raise ValueError("Script must have an ID")
         if not content:
@@ -656,7 +779,7 @@ class OpenHABClient:
         return self.create_rule(rule)
 
     def update_script(self, script_id: str, script_type: str, content: str) -> Rule:
-        """Update an existing script. A script is a rule without a trigger and tag of 'Script'"""
+        """Update a script rule."""
         rule = self.get_rule(script_id)
         # Check if script exists
         if not rule:
