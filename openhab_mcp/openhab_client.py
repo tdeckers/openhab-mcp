@@ -20,7 +20,6 @@ from openhab_mcp.models import (
     RuleCreate, 
     RuleUpdate
 )
-from openhab_mcp.openhab_mcp_server import get_item
 
 
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
