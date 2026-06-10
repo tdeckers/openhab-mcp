@@ -20,6 +20,7 @@ from openhab_mcp.models import (
     RuleCreate, 
     RuleUpdate
 )
+from openhab_mcp.openhab_mcp_server import get_item
 
 
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
@@ -247,11 +248,11 @@ class OpenHABClient:
         Raises:
             ValueError: If the item with the given name does not exist or update fails
         """
-        # Convert the update item to a dictionary, excluding unset fields
-        # This sends only the fields that should be updated
+        existing_item = self.get_item(item.name)
         payload = item.model_dump(exclude_unset=True, by_alias=True)
-        
+
         # Handle semantic and non-semantic tags specifically
+        tags_explicitly_set = 'semanticTags' in payload or 'nonSemanticTags' in payload
         tags = []
         if hasattr(item, 'semanticTags') and item.semanticTags:
             all_tags = self.list_semantic_tags()
@@ -260,17 +261,21 @@ class OpenHABClient:
                     tags.append(tag["name"])
         if hasattr(item, 'nonSemanticTags') and item.nonSemanticTags:
             tags.extend(item.nonSemanticTags)
-        
-        payload['tags'] = tags
-            
-        # Remove the original fields as they're not part of the API
+
         payload.pop('semanticTags', None)
         payload.pop('nonSemanticTags', None)
-        
+
+        # Merge: existing item as base, apply only explicitly set fields on top
+        merged = {**existing_item, **payload}
+
+        # Only override tags if explicitly set in the update, otherwise keep existing
+        if tags_explicitly_set:
+            merged['tags'] = tags
+
         # Send the update
         response = self.session.put(
             f"{self.base_url}/rest/items/{item.name}",
-            json=payload,
+            json=merged,
             headers={"Content-Type": "application/json"}
         )
 
@@ -282,7 +287,6 @@ class OpenHABClient:
             raise ValueError(f"Item with name '{item.name}' not editable")
         response.raise_for_status()
 
-        # Return the updated item
         return self.get_item(item.name)
     
     def delete_item(self, item_name: str) -> bool:
