@@ -250,7 +250,11 @@ class OpenHABClient:
         existing_item = self.get_item(item.name)
         payload = item.model_dump(exclude_unset=True, by_alias=True)
 
-        # Handle semantic and non-semantic tags specifically
+        # Convert tags from existing item to PUT format (GET returns objects, PUT expects names)
+        existing_tags = [tag['name'] for tag in existing_item.get('semanticTags', [])]
+        existing_tags.extend(existing_item.get('nonSemanticTags', []))
+
+        # Handle semantic and non-semantic tags from update
         tags_explicitly_set = 'semanticTags' in payload or 'nonSemanticTags' in payload
         tags = []
         if hasattr(item, 'semanticTags') and item.semanticTags:
@@ -264,10 +268,10 @@ class OpenHABClient:
         payload.pop('semanticTags', None)
         payload.pop('nonSemanticTags', None)
 
-        # Merge: existing item as base, apply only explicitly set fields on top
-        merged = {**existing_item, **payload}
+        # Merge: existing as base (with converted tags), updates on top
+        merged = {**existing_item, 'tags': existing_tags, **payload}
 
-        # Only override tags if explicitly set in the update, otherwise keep existing
+        # Only override tags if explicitly set in the update
         if tags_explicitly_set:
             merged['tags'] = tags
 
