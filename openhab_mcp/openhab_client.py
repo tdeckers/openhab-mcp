@@ -1504,7 +1504,7 @@ class OpenHABClient:
             raise ValueError(f"Item with name '{item_name}' is not editable")
         
         response.raise_for_status()
-        return self.get_item(item_name)
+        return True
 
     def remove_item_semantic_tag(self, item_name: str, tag_uid: str) -> bool:
         """
@@ -1536,7 +1536,7 @@ class OpenHABClient:
             raise ValueError(f"Item with name '{item_name}' is not editable")
         
         response.raise_for_status()
-        return self.get_item(item_name)
+        return True
 
     def add_item_non_semantic_tag(self, item_name: str, tag_name: str) -> bool:
         """
@@ -1566,7 +1566,7 @@ class OpenHABClient:
             raise ValueError(f"Item with name '{item_name}' is not editable")
         
         response.raise_for_status()
-        return self.get_item(item_name)
+        return True
 
     def remove_item_non_semantic_tag(self, item_name: str, tag_name: str) -> bool:
         """
@@ -1596,7 +1596,7 @@ class OpenHABClient:
             raise ValueError(f"Item with name '{item_name}' is not editable")
 
         response.raise_for_status()
-        return self.get_item(item_name)
+        return True
     
     def list_inbox_things(
         self,
