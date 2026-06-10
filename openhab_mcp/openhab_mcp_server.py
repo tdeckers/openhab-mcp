@@ -618,7 +618,7 @@ def get_thing_channels(
     linked_only: bool = Field(
         False, description="If True, only return channels with linked items"
     ),
-) -> Dict[str, Any]:
+) -> List[Dict[str, Any]]:
     """
     Get the channels of a specific openHAB thing by UID.
 
@@ -626,10 +626,7 @@ def get_thing_channels(
         thing_uid: UID of the thing to get details for
         linked_only: If True, only return channels with linked items
     """
-    try:
-        return openhab_client.get_thing_channels(thing_uid, linked_only)
-    except Exception as e:
-        return {"isError": True, "content": [TextContent(type="text", text=str(e))]}
+    return openhab_client.get_thing_channels(thing_uid, linked_only)
 
 
 # Rule Tools
