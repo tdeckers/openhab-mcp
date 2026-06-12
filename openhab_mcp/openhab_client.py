@@ -268,8 +268,20 @@ class OpenHABClient:
         payload.pop('semanticTags', None)
         payload.pop('nonSemanticTags', None)
 
-        # Merge: existing as base (with converted tags), updates on top
-        merged = {**existing_item, 'tags': existing_tags, **payload}
+        # Build a clean base with only writable item fields — spreading existing_item
+        # directly sends read-only fields (state, metadata, stateDescription, link, ...)
+        # which causes openHAB to drop or corrupt semantic tags.
+        clean_base: Dict[str, Any] = {
+            'name': existing_item['name'],
+            'type': existing_item['type'],
+            'tags': existing_tags,
+        }
+        for field in ('label', 'category', 'groupNames', 'unitSymbol', 'function', 'groupType'):
+            if field in existing_item and existing_item[field] is not None:
+                clean_base[field] = existing_item[field]
+
+        # Apply updates on top
+        merged = {**clean_base, **payload}
 
         # Only override tags if explicitly set in the update
         if tags_explicitly_set:
@@ -572,8 +584,8 @@ class OpenHABClient:
             raise ValueError(f"Metadata namespace '{namespace}' for item '{item_name}' not editable")
 
         response.raise_for_status()
-        return self.get_item(item_name)
-    
+        return True
+
     # ===== Item Members (Group Management) =====
     def add_item_member(self, item_name: str, member_item_name: str) -> Dict[str, Any]:
         """
