@@ -804,25 +804,47 @@ class OpenHABClient:
     # ===== Things =====
     def list_bindings(self) -> List[Dict[str, Any]]:
         """
-        Returns the distinct bindings present in the system, derived from existing thing UIDs.
+        Returns all installed bindings with their thing counts.
+
+        Merges two sources:
+        - /rest/addons?type=binding for all installed bindings (including those with 0 things)
+        - /rest/things for thing counts per binding
+
+        Falls back to thing-derived bindings only if the addons API is unavailable.
 
         Returns:
-            List of dicts with 'binding' (ID) and 'thing_count' keys, sorted by binding ID
+            List of dicts with 'binding' (ID), 'label', and 'thing_count' keys, sorted by binding ID
         """
-        response = self.session.get(f"{self.base_url}/rest/things", params={"summary": "true"})
-        response.raise_for_status()
-        things = response.json()
-
+        # Count things per binding from existing thing UIDs
+        things_response = self.session.get(f"{self.base_url}/rest/things", params={"summary": "true"})
+        things_response.raise_for_status()
         counts: Dict[str, int] = {}
-        for thing in things:
+        for thing in things_response.json():
             uid = thing.get("UID", "")
             binding = uid.split(":")[0] if ":" in uid else uid
             if binding:
                 counts[binding] = counts.get(binding, 0) + 1
 
+        # Try to get installed bindings from addons API for full list (including 0-thing bindings)
+        installed: Dict[str, str] = {}  # binding_id -> label
+        try:
+            addons_response = self.session.get(f"{self.base_url}/rest/addons", params={"type": "binding"})
+            if addons_response.ok:
+                for addon in addons_response.json():
+                    if addon.get("installed"):
+                        # addon uid format: "binding-shelly" → strip prefix
+                        uid = addon.get("uid", "").removeprefix("binding-")
+                        if uid:
+                            installed[uid] = addon.get("label", uid)
+        except Exception:
+            pass
+
+        # Merge: start from installed bindings, fill in any that only appear in things
+        all_bindings = {b: installed.get(b, b) for b in set(list(installed.keys()) + list(counts.keys()))}
+
         return [
-            {"binding": b, "thing_count": c}
-            for b, c in sorted(counts.items())
+            {"binding": b, "label": label, "thing_count": counts.get(b, 0)}
+            for b, label in sorted(all_bindings.items())
         ]
 
     def list_things(
