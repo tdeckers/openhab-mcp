@@ -584,8 +584,8 @@ class OpenHABClient:
             raise ValueError(f"Metadata namespace '{namespace}' for item '{item_name}' not editable")
 
         response.raise_for_status()
-        return self.get_item(item_name)
-    
+        return True
+
     # ===== Item Members (Group Management) =====
     def add_item_member(self, item_name: str, member_item_name: str) -> Dict[str, Any]:
         """
