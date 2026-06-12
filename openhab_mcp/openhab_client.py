@@ -468,6 +468,35 @@ class OpenHABClient:
         response.raise_for_status()
         return response.json()
 
+    def get_item_metadata(self, item_name: str, namespace: str) -> Dict[str, Any]:
+        """
+        Get metadata for a specific namespace of an item.
+
+        Args:
+            item_name: Name of the item
+            namespace: Namespace of the metadata to retrieve
+
+        Returns:
+            Dict[str, Any]: The metadata value and config
+
+        Raises:
+            ValueError: If the item or namespace is not found
+        """
+        if not item_name:
+            raise ValueError("Item name must be provided")
+        if not namespace:
+            raise ValueError("Namespace must be provided")
+
+        response = self.session.get(
+            f"{self.base_url}/rest/items/{item_name}/metadata/{namespace}"
+        )
+        if response.status_code == 404:
+            raise ValueError(
+                f"Item '{item_name}' or metadata namespace '{namespace}' not found"
+            )
+        response.raise_for_status()
+        return response.json()
+
     def add_or_update_item_metadata(
         self, item_name: str, namespace: str, metadata: ItemMetadata
     ) -> Dict[str, Any]:
