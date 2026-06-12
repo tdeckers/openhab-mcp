@@ -487,15 +487,15 @@ class OpenHABClient:
         if not namespace:
             raise ValueError("Namespace must be provided")
 
-        response = self.session.get(
-            f"{self.base_url}/rest/items/{item_name}/metadata/{namespace}"
-        )
+        response = self.session.get(f"{self.base_url}/rest/items/{item_name}")
         if response.status_code == 404:
-            raise ValueError(
-                f"Item '{item_name}' or metadata namespace '{namespace}' not found"
-            )
+            raise ValueError(f"Item '{item_name}' not found")
         response.raise_for_status()
-        return response.json()
+
+        metadata = response.json().get("metadata", {}).get(namespace)
+        if metadata is None:
+            raise ValueError(f"Metadata namespace '{namespace}' not found for item '{item_name}'")
+        return metadata
 
     def add_or_update_item_metadata(
         self, item_name: str, namespace: str, metadata: ItemMetadata
