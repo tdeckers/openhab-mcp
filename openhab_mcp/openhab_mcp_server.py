@@ -9,7 +9,7 @@ connects to a real openHAB instance via its REST API.
 import os
 import sys
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import Field
@@ -886,14 +886,19 @@ def get_semantic_tag(
         False,
         description="Include subtags in the response",
     ),
-) -> Optional[Dict[str, Any]]:
+) -> Union[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Get a specific openHAB tag by uid.
 
     Args:
         tag_uid: UID of the tag to get details for
     """
-    return openhab_client.get_semantic_tag(tag_uid, include_subtags)
+    result = openhab_client.get_semantic_tag(tag_uid, include_subtags)
+    if result is None:
+        return None
+    if not include_subtags:
+        return result[0] if result else None
+    return result
 
 
 @mcp.tool()
