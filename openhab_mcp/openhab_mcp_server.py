@@ -529,6 +529,15 @@ def delete_link(
 
 # Thing Tools
 @mcp.tool()
+def list_bindings() -> List[Dict[str, Any]]:
+    """
+    Returns the distinct bindings present in the system, derived from existing thing UIDs.
+    Use this to discover valid values for the filter_binding parameter of list_things.
+    """
+    return openhab_client.list_bindings()
+
+
+@mcp.tool()
 def list_things(
     page: int = Field(
         1,

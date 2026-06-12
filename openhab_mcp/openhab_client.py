@@ -802,6 +802,29 @@ class OpenHABClient:
         return True
 
     # ===== Things =====
+    def list_bindings(self) -> List[Dict[str, Any]]:
+        """
+        Returns the distinct bindings present in the system, derived from existing thing UIDs.
+
+        Returns:
+            List of dicts with 'binding' (ID) and 'thing_count' keys, sorted by binding ID
+        """
+        response = self.session.get(f"{self.base_url}/rest/things", params={"summary": "true"})
+        response.raise_for_status()
+        things = response.json()
+
+        counts: Dict[str, int] = {}
+        for thing in things:
+            uid = thing.get("UID", "")
+            binding = uid.split(":")[0] if ":" in uid else uid
+            if binding:
+                counts[binding] = counts.get(binding, 0) + 1
+
+        return [
+            {"binding": b, "thing_count": c}
+            for b, c in sorted(counts.items())
+        ]
+
     def list_things(
         self,
         page: int = 1,
