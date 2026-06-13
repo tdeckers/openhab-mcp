@@ -20,6 +20,7 @@ RUN pip install .
 # Set Python path
 ENV PYTHONPATH=/app:$PYTHONPATH
 
-# Run the MCP server in the background and keep the container alive
-CMD python -m openhab_mcp & \
-    tail -f /dev/null
+# Entrypoint: foreground for stdio, background+tail for HTTP
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+CMD ["/entrypoint.sh"]
