@@ -1,0 +1,20 @@
+services:
+  openhab-mcp:
+    image: ghcr.io/drrsatzteil/openhab-mcp:latest
+    container_name: openhab-mcp
+    restart: unless-stopped
+    ports:
+      - "8081:8000"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./process_templates_override:/app/openhab_mcp/process_templates/override
+    networks:
+      - openhab-network
+
+networks:
+  openhab-network:
+    driver: bridge
+    name: openhab-network

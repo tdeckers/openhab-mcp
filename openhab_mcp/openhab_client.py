@@ -61,6 +61,7 @@ class OpenHABClient:
         filter_type: Optional[str] = None,
         filter_name: Optional[str] = None,
         filter_fields: List[str] = [],
+        filter_group: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         List items with pagination
@@ -73,6 +74,7 @@ class OpenHABClient:
             filter_type: Optional filter items by type
             filter_name: Optional filter items by name
             filter_fields: Optional filter items by fields
+            filter_group: Optional filter items by group name (returns all members recursively)
 
         Returns:
             Dictionary containing the paginated results and pagination info
@@ -89,31 +91,38 @@ class OpenHABClient:
             params["tags"] = filter_tag
         if filter_type:
             params["type"] = filter_type
-        
+
         # Determine which fields to include in the final output
         output_fields = set(filter_fields) if filter_fields else None
-        
+
         if output_fields:
             # Prepare API fields to request
             api_fields = {"name"}  # Always include name for identification
-            
+
             # Add fields needed for tag processing
             if ("semanticTags" in output_fields or "nonSemanticTags" in output_fields):
                 api_fields.update(["tags"])
-                
+
             # Add other requested fields
             if output_fields:
                 api_fields.update(f for f in output_fields if f not in ["semanticTags", "nonSemanticTags"])
-                
+
             # Convert to comma-separated string for the API
             params["fields"] = ",".join(api_fields)
 
         # Set recursive if members are requested
         if not filter_fields or "members" in filter_fields:
             params["recursive"] = "true"
-            
+
+        # Choose endpoint: group members or all items
+        if filter_group:
+            url = f"{self.base_url}/rest/items/{quote(filter_group, safe='')}/members"
+            params["recursive"] = "true"
+        else:
+            url = f"{self.base_url}/rest/items"
+
         # Make the API request
-        response = self.session.get(f"{self.base_url}/rest/items", params=params)
+        response = self.session.get(url, params=params)
         response.raise_for_status()
 
         # Process the response
@@ -793,11 +802,68 @@ class OpenHABClient:
         return True
 
     # ===== Things =====
+    def list_bindings(self) -> List[Dict[str, Any]]:
+        """
+        Returns all installed bindings with thing and inbox counts.
+
+        Merges three sources:
+        - /rest/addons?type=binding  — installed bindings (includes those with 0 things)
+        - /rest/things               — thing_count per binding
+        - /rest/inbox                — inbox_count per binding (discovered, not yet approved)
+
+        Returns:
+            List of dicts with 'binding', 'label', 'thing_count', 'inbox_count', sorted by binding ID
+        """
+        # Fetch all three in parallel would be ideal, but requests is synchronous — do sequentially
+        things_response = self.session.get(f"{self.base_url}/rest/things", params={"summary": "true"})
+        things_response.raise_for_status()
+        thing_counts: Dict[str, int] = {}
+        for thing in things_response.json():
+            uid = thing.get("UID", "")
+            binding = uid.split(":")[0] if ":" in uid else uid
+            if binding:
+                thing_counts[binding] = thing_counts.get(binding, 0) + 1
+
+        inbox_response = self.session.get(f"{self.base_url}/rest/inbox")
+        inbox_response.raise_for_status()
+        inbox_counts: Dict[str, int] = {}
+        for entry in inbox_response.json():
+            uid = entry.get("thingUID", "")
+            binding = uid.split(":")[0] if ":" in uid else uid
+            if binding:
+                inbox_counts[binding] = inbox_counts.get(binding, 0) + 1
+
+        addons_response = self.session.get(f"{self.base_url}/rest/addons", params={"type": "binding"})
+        addons_response.raise_for_status()
+        installed: Dict[str, str] = {}  # binding_id -> label
+        for addon in addons_response.json():
+            if addon.get("installed"):
+                uid = addon.get("uid", "").removeprefix("binding-")
+                if uid:
+                    installed[uid] = addon.get("label", uid)
+
+        all_bindings = {
+            b: installed.get(b, b)
+            for b in set(list(installed.keys()) + list(thing_counts.keys()) + list(inbox_counts.keys()))
+        }
+
+        return [
+            {
+                "binding": b,
+                "label": label,
+                "thing_count": thing_counts.get(b, 0),
+                "inbox_count": inbox_counts.get(b, 0),
+            }
+            for b, label in sorted(all_bindings.items())
+        ]
+
     def list_things(
         self,
         page: int = 1,
         page_size: int = 50,
         sort_order: str = "asc",
+        filter_status: Optional[str] = None,
+        filter_binding: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         List things with pagination
@@ -806,6 +872,8 @@ class OpenHABClient:
             page: 1-based page number
             page_size: Number of items per page (default: 50)
             sort_order: Sort by UID in ascending or descending order ("asc" or "desc")
+            filter_status: Optional filter by thing status (e.g. "ONLINE", "OFFLINE")
+            filter_binding: Optional filter by binding ID prefix (e.g. "shelly", "unifi", "mqtt")
 
         Returns:
             PaginatedThings object containing the paginated results and pagination info
@@ -819,6 +887,13 @@ class OpenHABClient:
         # The responses are too long to be handled by most LLMs so we remove the channels
         for thing in things:
             thing.pop('channels', None)
+
+        # Apply filters
+        if filter_status:
+            things = [t for t in things if t.get("statusInfo", {}).get("status", "").upper() == filter_status.upper()]
+        if filter_binding:
+            prefix = filter_binding.lower().rstrip(":")
+            things = [t for t in things if str(t.get("UID", "")).lower().startswith(prefix + ":")]
 
         # Sort the things
         reverse_sort = sort_order.lower() == "desc"

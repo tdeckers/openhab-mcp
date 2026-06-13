@@ -136,6 +136,11 @@ def list_items(
         description="Optional filter items by fields. Item name will always be included by default.",
         examples=["name", "label", "type", "semantic_tags", "non_semantic_tags"],
     ),
+    filter_group: str = Field(
+        "",
+        description="Optional filter items by group name. Returns all members of the group recursively. Use the group item name (e.g. a location like 'Indoor_Room_Bedroom' or an equipment group).",
+        examples=["Indoor_Room_Bedroom", "Indoor_Floor_UpperFloor", "loc_house"],
+    ),
 ) -> Dict[str, Any]:
     """
     Gives a list of openHAB items with only basic information. Use this tool
@@ -150,6 +155,7 @@ def list_items(
         filter_type: Optional filter items by type
         filter_name: Optional filter items by name. All items that contain the filter value in their name are returned
         filter_fields: Optional filter items by fields. Item name will always be included by default.
+        filter_group: Optional filter items by group name. Returns all members recursively.
     """
     return openhab_client.list_items(
         page=page,
@@ -159,6 +165,7 @@ def list_items(
         filter_type=filter_type,
         filter_name=filter_name,
         filter_fields=filter_fields,
+        filter_group=filter_group or None,
     )
 
 
@@ -522,6 +529,16 @@ def delete_link(
 
 # Thing Tools
 @mcp.tool()
+def list_bindings() -> List[Dict[str, Any]]:
+    """
+    Returns all installed bindings with their thing counts.
+    Includes bindings with 0 things (useful for triggering discovery).
+    Use this to discover valid values for the filter_binding parameter of list_things.
+    """
+    return openhab_client.list_bindings()
+
+
+@mcp.tool()
 def list_things(
     page: int = Field(
         1,
@@ -529,6 +546,16 @@ def list_things(
     ),
     page_size: int = Field(15, description="Number of elements per page"),
     sort_order: str = Field("asc", description="Sort order", examples=["asc", "desc"]),
+    filter_status: str = Field(
+        "",
+        description="Optional filter by thing status",
+        examples=["ONLINE", "OFFLINE", "UNKNOWN"],
+    ),
+    filter_binding: str = Field(
+        "",
+        description="Optional filter by binding ID prefix (the part before the first colon in the thing UID)",
+        examples=["shelly", "unifi", "mqtt", "zwave"],
+    ),
 ) -> Dict[str, Any]:
     """
     List openHAB things with basic information with pagination. Use the `get_thing` tool to get
@@ -538,9 +565,15 @@ def list_things(
         page: 1-based page number (default: 1)
         page_size: Number of elements per page (default: 50)
         sort_order: Sort order ("asc" or "desc") (default: "asc")
+        filter_status: Optional filter by thing status (e.g. "ONLINE", "OFFLINE")
+        filter_binding: Optional filter by binding ID prefix (e.g. "shelly", "unifi", "mqtt")
     """
     return openhab_client.list_things(
-        page=page, page_size=page_size, sort_order=sort_order
+        page=page,
+        page_size=page_size,
+        sort_order=sort_order,
+        filter_status=filter_status or None,
+        filter_binding=filter_binding or None,
     )
 
 
