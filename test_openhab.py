@@ -53,7 +53,8 @@ def main():
         pagination = items_page.pagination
         print(
             f"Found {pagination.total_elements} items "
-            f"(showing {len(items)} on page {pagination.page}/{max(pagination.total_pages, 1)}):"
+            f"(showing {len(items)} on page "
+            f"{pagination.page}/{max(pagination.total_pages, 1)}):"
         )
 
         for item in items[:10]:  # Show first 10 items
@@ -64,8 +65,7 @@ def main():
         if pagination.has_next:
             remaining = max(
                 0,
-                pagination.total_elements
-                - pagination.page * pagination.page_size,
+                pagination.total_elements - pagination.page * pagination.page_size,
             )
             if remaining > 0:
                 print(f"  ... and {remaining} more items")
@@ -81,7 +81,8 @@ def main():
         pagination = things_page.pagination
         print(
             f"Found {pagination.total_elements} things "
-            f"(showing {len(things)} on page {pagination.page}/{max(pagination.total_pages, 1)}):"
+            f"(showing {len(things)} on page "
+            f"{pagination.page}/{max(pagination.total_pages, 1)}):"
         )
 
         for thing in things[:5]:  # Show first 5 things
@@ -93,8 +94,7 @@ def main():
         if pagination.has_next:
             remaining = max(
                 0,
-                pagination.total_elements
-                - pagination.page * pagination.page_size,
+                pagination.total_elements - pagination.page * pagination.page_size,
             )
             if remaining > 0:
                 print(f"  ... and {remaining} more things")
@@ -146,12 +146,14 @@ def main():
         if links:
             test_link = links[0]
             print(
-                f"\n--- Testing get_link() for '{test_link.itemName}' -> '{test_link.channelUID}' ---"
+                "\n--- Testing get_link() for "
+                f"'{test_link.itemName}' -> '{test_link.channelUID}' ---"
             )
             specific_link = client.get_link(test_link.itemName, test_link.channelUID)
             if specific_link:
                 print(
-                    f"Retrieved link: {specific_link.itemName} -> {specific_link.channelUID}"
+                    f"Retrieved link: {specific_link.itemName} -> "
+                    f"{specific_link.channelUID}"
                 )
                 print(f"Configuration: {specific_link.configuration}")
                 print(f"Editable: {specific_link.editable}")

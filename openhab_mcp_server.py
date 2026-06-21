@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 # Import the MCP server implementation
 from mcp.server import FastMCP
 from starlette.applications import Starlette
-from starlette.routing import Mount
+from starlette.routing import Mount, Route
 
 # Import our modules
 from models import (
@@ -445,22 +445,56 @@ def delete_all_links_for_object(object_name: str) -> bool:
     return openhab_client.delete_all_links_for_object(object_name)
 
 
+class _SlashlessMountEndpoint:
+    """Forward an exact mount path request to the mounted app's root path."""
+
+    def __init__(self, app: Starlette, root_path_suffix: str):
+        self.app = app
+        self.root_path_suffix = root_path_suffix
+
+    async def __call__(self, scope, receive, send):
+        forwarded_scope = dict(scope)
+        forwarded_scope["path"] = "/"
+        forwarded_scope["raw_path"] = b"/"
+        forwarded_scope["root_path"] = (
+            forwarded_scope.get("root_path", "") + self.root_path_suffix
+        )
+        await self.app(forwarded_scope, receive, send)
+
+
+def _disable_redirect_slashes(app: Starlette) -> None:
+    app.router.redirect_slashes = False
+
+
+def _transport_routes(path: str, app: Starlette) -> List[Any]:
+    _disable_redirect_slashes(app)
+    return [
+        Route(path, endpoint=_SlashlessMountEndpoint(app, path), methods=None),
+        Mount(path, app=app),
+    ]
+
+
 def _build_remote_app() -> Starlette:
     mcp.settings.streamable_http_path = "/"
     mcp.settings.sse_path = "/"
+
+    streamable_http_app = mcp.streamable_http_app()
+    sse_app = mcp.sse_app()
 
     @contextlib.asynccontextmanager
     async def lifespan(app: Starlette):
         async with mcp.session_manager.run():
             yield
 
-    return Starlette(
+    app = Starlette(
         routes=[
-            Mount("/mcp", app=mcp.streamable_http_app()),
-            Mount("/sse", app=mcp.sse_app()),
+            *_transport_routes("/mcp", streamable_http_app),
+            *_transport_routes("/sse", sse_app),
         ],
         lifespan=lifespan,
     )
+    _disable_redirect_slashes(app)
+    return app
 
 
 def main():
